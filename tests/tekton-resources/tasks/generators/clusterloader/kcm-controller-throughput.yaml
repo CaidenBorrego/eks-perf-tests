@@ -91,10 +91,12 @@ spec:
       [ -f "tests/assets/kcm-controller-throughput/$(params.controller)/$(params.overrides)" ]
   - name: build
     image: golang:1.26
-    workingDir: $(workspaces.source.path)/perf-tests/clusterloader2
+    # No workingDir under the clone targets: Tekton creates every step's workingDir
+    # before the first step runs, and git clone refuses a non-empty destination.
     script: |
       #!/bin/sh
       set -eu
+      cd "$(workspaces.source.path)/perf-tests/clusterloader2"
       GOOS=linux CGO_ENABLED=0 go build -o ./clusterloader ./cmd
   - name: prepare
     image: $(params.kubectl-image)
@@ -128,11 +130,11 @@ spec:
       cat "$RUN_DIR/ips.before" "$RUN_DIR/lease.before"; echo
   - name: run-loadtest
     image: $(params.kubectl-image)
-    workingDir: $(workspaces.source.path)/assets/tests/assets/kcm-controller-throughput/$(params.controller)
     script: |
       #!/bin/bash
       # Never fails the step: the outcome is graded by evaluate.
       set +e
+      cd "$ASSETS/$(params.controller)" || { echo 98 > "$RUN_DIR/cl2.exit"; exit 0; }
       date +%s > "$RUN_DIR/start.epoch"
       # The exec service (on by default) needs an untainted real node; this cluster has none.
       $(workspaces.source.path)/perf-tests/clusterloader2/clusterloader \
