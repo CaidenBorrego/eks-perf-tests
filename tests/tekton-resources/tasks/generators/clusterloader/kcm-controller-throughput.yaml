@@ -134,6 +134,8 @@ spec:
       #!/bin/bash
       # Never fails the step: the outcome is graded by evaluate.
       set +e
+      # git-clone and prepare already fail (no datapoint) when the assets are missing;
+      # this last guard only keeps CL2 from running in the wrong directory.
       cd "$ASSETS/$(params.controller)" || { echo 98 > "$RUN_DIR/cl2.exit"; exit 0; }
       date +%s > "$RUN_DIR/start.epoch"
       # The exec service (on by default) needs an untainted real node; this cluster has none.
