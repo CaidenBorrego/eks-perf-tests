@@ -53,9 +53,11 @@ spec:
       count_ready() { kubectl get nodes -l type=kwok --no-headers 2>/dev/null | grep -c ' Ready' || true; }
       ready=$(count_ready)
       if [ "$ready" -ge "$N" ]; then echo "KWOK already has $ready Ready nodes"; exit 0; fi
-      kubectl apply -f "$K/kwok.yaml"
+      # kwok.yaml bundles a FlowSchema on the exempt priority level; EKS rejects any
+      # FlowSchema that references exempt, so apply everything else and use ours
+      # (same name, workload-low) instead. yq ships in the kubectl image.
+      yq 'select(.kind != "FlowSchema")' "$K/kwok.yaml" | kubectl apply -f -
       kubectl apply -f "$K/stage-fast.yaml"
-      # Same name as the FlowSchema in kwok.yaml, so this replaces it (exempt -> workload-low).
       kubectl apply -f "$K/flowschema.yaml"
       PATCH=$(printf '{"spec":{"template":{"spec":{"nodeSelector":{"%s":"%s"},"tolerations":[{"key":"monitoring","operator":"Exists","effect":"NoSchedule"}]}}}}' \
         "$(params.system-node-selector-key)" "$(params.system-node-selector-value)")
