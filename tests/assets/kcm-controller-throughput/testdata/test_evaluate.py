@@ -248,6 +248,16 @@ class T2Synthetic(Base):
         self.assertFalse(v["checks"]["single_leader"])
         self.assertFalse(v["passed"])
 
+    def test_missing_overrides_file_is_graded(self):
+        self.valid_run(synthetic_junit(waves=5))
+        v = evaluate.evaluate(self.env(OVERRIDES="/nonexistent/overrides.yaml"))
+        self.assertFalse(v["checks"]["overrides_parsed"])
+        self.assertFalse(v["passed"])
+
+    def test_zero_length_reconcile_counts_as_ran(self):
+        self.valid_run(synthetic_junit(waves=5, reconcile_s=0.0))
+        self.assertTrue(evaluate.evaluate(self.env())["checks"]["all_waves_ran"])
+
     def test_overrides_without_sizes_fail(self):
         self.valid_run(synthetic_junit(waves=5))
         self.write("ov.yaml", "CL2_LOAD_QPS: 1000\n")

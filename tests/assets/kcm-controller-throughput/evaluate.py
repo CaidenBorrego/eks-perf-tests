@@ -41,11 +41,15 @@ def parse_overrides(paths):
     """CL2_NAMESPACES / CL2_RS_PER_NAMESPACE found in the overrides files (last wins)."""
     vals = {}
     for p in paths:
-        with open(p) as f:
-            for line in f:
-                m = OVERRIDE_RE.match(line)
-                if m:
-                    vals[m.group(1)] = int(m.group(2))
+        try:
+            with open(p) as f:
+                lines = f.readlines()
+        except OSError:
+            continue  # reported by the overrides_parsed check
+        for line in lines:
+            m = OVERRIDE_RE.match(line)
+            if m:
+                vals[m.group(1)] = int(m.group(2))
     return vals
 
 
@@ -66,8 +70,10 @@ def waves_from_junit(path, start):
         m = WAVE_RE.search(name)
         if m:
             key = (int(m.group(3) or m.group(4)), m.group(2) or m.group(5))
-            w = waves.setdefault(key, {"start": t, "scale": 0.0, "reconcile": 0.0})
+            w = waves.setdefault(key, {"start": t, "scale": 0.0, "reconcile": 0.0, "reconciled": False})
             w["scale" if m.group(1) == "Scale" else "reconcile"] += d
+            if m.group(1) == "Reconcile":
+                w["reconciled"] = True
             w["end"] = t + d
             if m.group(1) == "Reconcile" and (tc.find("failure") is not None or tc.find("error") is not None):
                 failed = True
@@ -122,7 +128,7 @@ def evaluate(env):
     else:
         waves, reconcile_failed = {}, True
     checks["reconcile_all_waves"] = bool(waves) and not reconcile_failed
-    complete = [w for w in waves.values() if w["reconcile"] > 0]
+    complete = [w for w in waves.values() if w["reconciled"]]
     checks["all_waves_ran"] = want_waves > 0 and len(complete) == 2 * want_waves
 
     paths = env.get("OVERRIDES", "").split()
@@ -159,7 +165,8 @@ def evaluate(env):
     leader = ranked[-1][1] if ranked else None
     metrics["leader_ip"] = leader
     # Only the leader runs the queue; a second busy master means the window spans a
-    # leader handoff, so the leader's series does not cover the whole load.
+    # leader handoff, so the leader's series does not cover the whole load. Not redundant
+    # with no_leader_change: it also catches a handoff and hand-back inside the run.
     checks["single_leader"] = len(ranked) <= 1 or ranked[-2][0] < 0.05 * ranked[-1][0]
 
     busy = syncs = depth_max = 0.0
