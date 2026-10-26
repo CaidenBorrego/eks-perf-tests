@@ -70,7 +70,7 @@ class Base(unittest.TestCase):
 
     def env(self, **kw):
         e = {"RUN_DIR": self.run, "OVERRIDES": self.overrides, "EXPECTED_WORKERS": "5",
-             "MIN_RS_PER_S": "100", "BUSY_RATIO": "0.8", "WARMUP_S": "30"}
+             "MIN_RS_PER_S": "100", "BUSY_RATIO": "0.8", "WARMUP_S": "30", "WAVES": "5"}
         e.update({k: str(v) for k, v in kw.items()})
         return e
 
@@ -117,7 +117,7 @@ class T1Baseline(Base):
     def test_threshold_above_baseline_fails(self):
         with open(BASELINE_JUNIT) as f:
             self.valid_run(f.read())
-        v = evaluate.evaluate(self.env(MIN_RS_PER_S=200))
+        v = evaluate.evaluate(self.env(MIN_RS_PER_S=200, WAVES=20))
         self.assertFalse(v["checks"]["throughput"])
         self.assertEqual(v["datapoint"], 1)
 
@@ -212,12 +212,48 @@ class T2Synthetic(Base):
         self.assertFalse(evaluate.evaluate(self.env())["checks"]["cl2_exit_0"])
 
     def test_short_run_keeps_window(self):
-        # Smoke scale: 2 waves of ~6 s each; the 30 s trim must not empty the window.
+        # Smoke scale (5 RS): the 30 s trim must not empty the window. Throughput is
+        # ~0.2-1 RS/s here, so a smoke run needs min-rs-per-s below 1 to pass.
         self.write("ov.yaml", "CL2_NAMESPACES: 1\nCL2_RS_PER_NAMESPACE: 5\n")
         self.valid_run(synthetic_junit(waves=2, scale_s=1.0, reconcile_s=20.0))
-        v = evaluate.evaluate(self.env(MIN_RS_PER_S=0, EXPECTED_WORKERS=0))
+        v = evaluate.evaluate(self.env(MIN_RS_PER_S=0.1, EXPECTED_WORKERS=5, WAVES=2))
         self.assertGreater(v["metrics"]["load_window_s"], 0)
         self.assertTrue(v["checks"]["leader_found"], v)
+        self.assertTrue(v["passed"], v)
+
+    def test_expected_workers_zero_fails(self):
+        self.valid_run(synthetic_junit(waves=5))
+        v = evaluate.evaluate(self.env(EXPECTED_WORKERS=0))
+        self.assertFalse(v["checks"]["expected_workers_set"])
+        self.assertFalse(v["checks"]["busy_workers"])
+        self.assertFalse(v["passed"])
+
+    def test_waves_unset_fails(self):
+        self.valid_run(synthetic_junit(waves=5))
+        env = self.env()
+        del env["WAVES"]
+        v = evaluate.evaluate(env)
+        self.assertFalse(v["checks"]["all_waves_ran"])
+        self.assertFalse(v["passed"])
+
+    def test_two_busy_masters_fail(self):
+        waves = self.valid_run(synthetic_junit(waves=5))
+        t0 = min(w["start"] for w in waves.values()) - 30
+        t1 = max(w["end"] for w in waves.values()) + 30
+        other = synthetic_samples(t0, t1, count_rate=200.0).replace(LEADER, STANDBY)
+        with open(os.path.join(self.run, "samples.txt"), "a") as f:
+            f.write(other)
+        v = evaluate.evaluate(self.env())
+        self.assertEqual(v["metrics"]["leader_ip"], LEADER)
+        self.assertFalse(v["checks"]["single_leader"])
+        self.assertFalse(v["passed"])
+
+    def test_overrides_without_sizes_fail(self):
+        self.valid_run(synthetic_junit(waves=5))
+        self.write("ov.yaml", "CL2_LOAD_QPS: 1000\n")
+        v = evaluate.evaluate(self.env())
+        self.assertFalse(v["checks"]["overrides_parsed"])
+        self.assertFalse(v["passed"])
 
     def test_cli_writes_verdict(self):
         self.valid_run(synthetic_junit(waves=5))

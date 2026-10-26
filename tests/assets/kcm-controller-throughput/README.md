@@ -36,7 +36,8 @@ and update this table.
 | `throughput` | median ReplicaSet changes/s per half-wave (junit) >= `min-rs-per-s` |
 | `busy_workers` | delta `workqueue_work_duration_seconds_sum` / delta t on the KCM leader >= `busy-ratio` x `expected-workers` |
 | `cl2_exit_0`, `reconcile_all_waves`, `all_waves_ran` | CL2 finished and every half-wave reconciled |
-| `leader_found`, `no_counter_reset`, `queue_fed` | metrics cover the load window; queue depth > 0 |
+| `leader_found`, `single_leader`, `no_counter_reset`, `queue_fed` | one master's queue covers the load window; queue depth > 0 |
+| `overrides_parsed`, `expected_workers_set` | tier sizes read from the overrides file; `expected-workers` > 0 |
 | `no_leader_change`, `masters_unchanged` | KCM lease and master IPs identical before/after |
 | `cleanup` | 0 test pods left |
 

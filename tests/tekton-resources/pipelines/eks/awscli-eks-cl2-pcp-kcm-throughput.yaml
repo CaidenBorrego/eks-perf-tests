@@ -58,6 +58,9 @@ spec:
   - name: coredns-replicas
     default: "0"
     description: "CoreDNS replicas; 0 because no node here can run CoreDNS and pending pods add controller noise"
+  - name: region
+    default: "us-west-2"
+    description: "region for the S3 upload and CloudWatch datapoints of generate"
   - name: kubectl-image
     default: "alpine/k8s:1.33.4"
   tasks:
@@ -246,6 +249,8 @@ spec:
       value: $(params.metric-name)
     - name: run-id
       value: $(context.pipelineRun.name)
+    - name: region
+      value: $(params.region)
     - name: kubectl-image
       value: $(params.kubectl-image)
     runAfter:

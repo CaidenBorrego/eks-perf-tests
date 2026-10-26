@@ -10,7 +10,8 @@ Env:
   BUSY_RATIO       busy_workers >= BUSY_RATIO * EXPECTED_WORKERS (default 0.8)
   WARMUP_S         seconds trimmed from each end of the load window (default 30;
                    capped at a quarter of the load span so short runs keep a window)
-  WAVES            expected number of waves; if set, 2*WAVES half-waves must be in junit
+  WAVES            expected number of waves (> 0); exactly 2*WAVES reconciled half-waves
+                   must be in junit
 
 Writes RUN_DIR/verdict.json: {"passed", "datapoint" (0 pass, 1 fail), "checks", "metrics"}.
 Standard library only.
@@ -36,14 +37,21 @@ def read(run, name, default=""):
         return f.read().strip()
 
 
-def rs_total(paths):
-    vals = {"CL2_NAMESPACES": 50, "CL2_RS_PER_NAMESPACE": 100}  # config.yaml defaults
+def parse_overrides(paths):
+    """CL2_NAMESPACES / CL2_RS_PER_NAMESPACE found in the overrides files (last wins)."""
+    vals = {}
     for p in paths:
         with open(p) as f:
             for line in f:
                 m = OVERRIDE_RE.match(line)
                 if m:
                     vals[m.group(1)] = int(m.group(2))
+    return vals
+
+
+def rs_total(paths):
+    vals = {"CL2_NAMESPACES": 50, "CL2_RS_PER_NAMESPACE": 100}  # config.yaml defaults
+    vals.update(parse_overrides(paths))
     return vals["CL2_NAMESPACES"] * vals["CL2_RS_PER_NAMESPACE"]
 
 
@@ -92,7 +100,10 @@ def evaluate(env):
     min_rs = float(env["MIN_RS_PER_S"])
     busy_ratio = float(env.get("BUSY_RATIO") or "0.8")
     warmup = float(env.get("WARMUP_S") or "30")
-    want_waves = int(env["WAVES"]) if env.get("WAVES") else None
+    try:
+        want_waves = int(env.get("WAVES") or "0")
+    except ValueError:
+        want_waves = 0
     checks, metrics = {}, {}
 
     try:
@@ -112,9 +123,12 @@ def evaluate(env):
         waves, reconcile_failed = {}, True
     checks["reconcile_all_waves"] = bool(waves) and not reconcile_failed
     complete = [w for w in waves.values() if w["reconcile"] > 0]
-    checks["all_waves_ran"] = bool(waves) and (want_waves is None or len(complete) == 2 * want_waves)
+    checks["all_waves_ran"] = want_waves > 0 and len(complete) == 2 * want_waves
 
-    total = rs_total(env.get("OVERRIDES", "").split())
+    paths = env.get("OVERRIDES", "").split()
+    # The denominator must come from the tier file, not silently from config defaults.
+    checks["overrides_parsed"] = set(parse_overrides(paths)) == set(("CL2_NAMESPACES", "CL2_RS_PER_NAMESPACE"))
+    total = rs_total(paths)
     rates = [total / (w["scale"] + w["reconcile"]) for w in waves.values() if w["scale"] + w["reconcile"] > 0]
     metrics["rs_total"] = total
     metrics["rs_per_s_median"] = round(statistics.median(rates), 1) if rates else 0.0
@@ -136,13 +150,17 @@ def evaluate(env):
     # Leader = the master whose queue did the most syncs in the window. Sum only the
     # positive steps so a counter reset (KCM restart) keeps the leader visible and
     # is then reported by no_counter_reset instead of hiding as "no leader".
-    leader, best = None, 0.0
+    work = {}
     for ip in sorted(s):
         cnt = win(ip, "workqueue_work_duration_seconds_count")
-        work = sum(max(b[1] - a[1], 0.0) for a, b in zip(cnt, cnt[1:]))
-        if len(cnt) >= 2 and work > best:
-            leader, best = ip, work
+        if len(cnt) >= 2:
+            work[ip] = sum(max(b[1] - a[1], 0.0) for a, b in zip(cnt, cnt[1:]))
+    ranked = sorted((w, ip) for ip, w in work.items() if w > 0)
+    leader = ranked[-1][1] if ranked else None
     metrics["leader_ip"] = leader
+    # Only the leader runs the queue; a second busy master means the window spans a
+    # leader handoff, so the leader's series does not cover the whole load.
+    checks["single_leader"] = len(ranked) <= 1 or ranked[-2][0] < 0.05 * ranked[-1][0]
 
     busy = syncs = depth_max = 0.0
     counter_reset = False
@@ -159,7 +177,8 @@ def evaluate(env):
 
     checks["leader_found"] = leader is not None
     checks["no_counter_reset"] = not counter_reset
-    checks["busy_workers"] = leader is not None and busy >= busy_ratio * expected
+    checks["expected_workers_set"] = expected > 0
+    checks["busy_workers"] = leader is not None and expected > 0 and busy >= busy_ratio * expected
     checks["queue_fed"] = depth_max > 0
     lb, la = read(run, "lease.before"), read(run, "lease.after")
     checks["no_leader_change"] = lb != "" and lb == la
