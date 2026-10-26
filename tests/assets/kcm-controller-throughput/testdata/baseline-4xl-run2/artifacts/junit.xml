@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+  <testsuite name="ClusterLoaderV2" tests="0" failures="0" errors="0" time="2081.531">
+      <testcase name="replicaset-worker-tuning overall (config.yaml)" classname="ClusterLoaderV2" time="2081.514242123"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 01] Start pods-running measurement [00] - WaitForReplicaSetsRunning" classname="ClusterLoaderV2" time="0.209031548"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 02] Create ReplicaSets" classname="ClusterLoaderV2" time="52.365537182"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 03] Wait for ReplicaSet pods [00] - WaitForReplicaSetsRunning" classname="ClusterLoaderV2" time="5.550252148"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 04] Settle before load [00] - Settle" classname="ClusterLoaderV2" time="300.007739682"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 05] Start wave 0 up [00] - Wave0up" classname="ClusterLoaderV2" time="0.719136937"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 06] Scale up wave 0" classname="ClusterLoaderV2" time="5.641727628"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 07] Reconcile wave 0 up [00] - Wave0up" classname="ClusterLoaderV2" time="24.998364419"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 08] Start wave 0 down [00] - Wave0down" classname="ClusterLoaderV2" time="3.902006538"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 09] Scale down wave 0" classname="ClusterLoaderV2" time="5.686786913"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 10] Reconcile wave 0 down [00] - Wave0down" classname="ClusterLoaderV2" time="24.998742995"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 11] Start wave 1 up [00] - Wave1up" classname="ClusterLoaderV2" time="1.319903693"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 12] Scale up wave 1" classname="ClusterLoaderV2" time="5.571704953"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 13] Reconcile wave 1 up [00] - Wave1up" classname="ClusterLoaderV2" time="23.940977413"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 14] Start wave 1 down [00] - Wave1down" classname="ClusterLoaderV2" time="0.701962508"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 15] Scale down wave 1" classname="ClusterLoaderV2" time="5.582380501"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 16] Reconcile wave 1 down [00] - Wave1down" classname="ClusterLoaderV2" time="25.867997891"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 17] Start wave 2 up [00] - Wave2up" classname="ClusterLoaderV2" time="0.702487384"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 18] Scale up wave 2" classname="ClusterLoaderV2" time="5.528997926"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 19] Reconcile wave 2 up [00] - Wave2up" classname="ClusterLoaderV2" time="24.576073539"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 20] Start wave 2 down [00] - Wave2down" classname="ClusterLoaderV2" time="1.302081613"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 21] Scale down wave 2" classname="ClusterLoaderV2" time="5.553302244"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 22] Reconcile wave 2 down [00] - Wave2down" classname="ClusterLoaderV2" time="27.463873687"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 23] Start wave 3 up [00] - Wave3up" classname="ClusterLoaderV2" time="0.70188163"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 24] Scale up wave 3" classname="ClusterLoaderV2" time="5.504955397"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 25] Reconcile wave 3 up [00] - Wave3up" classname="ClusterLoaderV2" time="24.997246323"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 26] Start wave 3 down [00] - Wave3down" classname="ClusterLoaderV2" time="7.901943394"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 27] Scale down wave 3" classname="ClusterLoaderV2" time="5.563777469"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 28] Reconcile wave 3 down [00] - Wave3down" classname="ClusterLoaderV2" time="24.996300422"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 29] Start wave 4 up [00] - Wave4up" classname="ClusterLoaderV2" time="3.002186519"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 30] Scale up wave 4" classname="ClusterLoaderV2" time="5.506932735"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 31] Reconcile wave 4 up [00] - Wave4up" classname="ClusterLoaderV2" time="24.998932045"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 32] Start wave 4 down [00] - Wave4down" classname="ClusterLoaderV2" time="9.001929402"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 33] Scale down wave 4" classname="ClusterLoaderV2" time="5.597386388"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 34] Reconcile wave 4 down [00] - Wave4down" classname="ClusterLoaderV2" time="24.998142301"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 35] Start wave 5 up [00] - Wave5up" classname="ClusterLoaderV2" time="1.301939455"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 36] Scale up wave 5" classname="ClusterLoaderV2" time="5.512558351"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 37] Reconcile wave 5 up [00] - Wave5up" classname="ClusterLoaderV2" time="24.797862497"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 38] Start wave 5 down [00] - Wave5down" classname="ClusterLoaderV2" time="10.802071811"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 39] Scale down wave 5" classname="ClusterLoaderV2" time="5.592244042"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 40] Reconcile wave 5 down [00] - Wave5down" classname="ClusterLoaderV2" time="24.99708553"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 41] Start wave 6 up [00] - Wave6up" classname="ClusterLoaderV2" time="2.5019699060000002"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 42] Scale up wave 6" classname="ClusterLoaderV2" time="5.568676531"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 43] Reconcile wave 6 up [00] - Wave6up" classname="ClusterLoaderV2" time="24.984299507"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 44] Start wave 6 down [00] - Wave6down" classname="ClusterLoaderV2" time="1.402145996"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 45] Scale down wave 6" classname="ClusterLoaderV2" time="5.560907562"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 46] Reconcile wave 6 down [00] - Wave6down" classname="ClusterLoaderV2" time="28.802592163"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 47] Start wave 7 up [00] - Wave7up" classname="ClusterLoaderV2" time="2.988605305"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 48] Scale up wave 7" classname="ClusterLoaderV2" time="5.569445192"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 49] Reconcile wave 7 up [00] - Wave7up" classname="ClusterLoaderV2" time="23.858783693"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 50] Start wave 7 down [00] - Wave7down" classname="ClusterLoaderV2" time="0.80188975"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 51] Scale down wave 7" classname="ClusterLoaderV2" time="5.672413007"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 52] Reconcile wave 7 down [00] - Wave7down" classname="ClusterLoaderV2" time="25.630125631"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 53] Start wave 8 up [00] - Wave8up" classname="ClusterLoaderV2" time="7.602152802"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 54] Scale up wave 8" classname="ClusterLoaderV2" time="5.702633819"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 55] Reconcile wave 8 up [00] - Wave8up" classname="ClusterLoaderV2" time="24.997820094"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 56] Start wave 8 down [00] - Wave8down" classname="ClusterLoaderV2" time="5.801957863"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 57] Scale down wave 8" classname="ClusterLoaderV2" time="5.681090579"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 58] Reconcile wave 8 down [00] - Wave8down" classname="ClusterLoaderV2" time="24.997651959"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 59] Start wave 9 up [00] - Wave9up" classname="ClusterLoaderV2" time="6.602022096"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 60] Scale up wave 9" classname="ClusterLoaderV2" time="5.705148397"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 61] Reconcile wave 9 up [00] - Wave9up" classname="ClusterLoaderV2" time="24.997103196"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 62] Start wave 9 down [00] - Wave9down" classname="ClusterLoaderV2" time="0.802063057"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 63] Scale down wave 9" classname="ClusterLoaderV2" time="5.7428426120000005"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 64] Reconcile wave 9 down [00] - Wave9down" classname="ClusterLoaderV2" time="29.825368432"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 65] Start wave 10 up [00] - Wave10up" classname="ClusterLoaderV2" time="2.001875995"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 66] Scale up wave 10" classname="ClusterLoaderV2" time="5.754982869"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 67] Reconcile wave 10 up [00] - Wave10up" classname="ClusterLoaderV2" time="24.996807202"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 68] Start wave 10 down [00] - Wave10down" classname="ClusterLoaderV2" time="9.502016347"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 69] Scale down wave 10" classname="ClusterLoaderV2" time="5.796721211"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 70] Reconcile wave 10 down [00] - Wave10down" classname="ClusterLoaderV2" time="25.000411001"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 71] Start wave 11 up [00] - Wave11up" classname="ClusterLoaderV2" time="1.402037808"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 72] Scale up wave 11" classname="ClusterLoaderV2" time="5.829523112"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 73] Reconcile wave 11 up [00] - Wave11up" classname="ClusterLoaderV2" time="24.998315563"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 74] Start wave 11 down [00] - Wave11down" classname="ClusterLoaderV2" time="0.801941966"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 75] Scale down wave 11" classname="ClusterLoaderV2" time="5.74962544"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 76] Reconcile wave 11 down [00] - Wave11down" classname="ClusterLoaderV2" time="28.203919022"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 77] Start wave 12 up [00] - Wave12up" classname="ClusterLoaderV2" time="1.502195326"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 78] Scale up wave 12" classname="ClusterLoaderV2" time="5.97189277"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 79] Reconcile wave 12 up [00] - Wave12up" classname="ClusterLoaderV2" time="22.638167258"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 80] Start wave 12 down [00] - Wave12down" classname="ClusterLoaderV2" time="5.002207464"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 81] Scale down wave 12" classname="ClusterLoaderV2" time="5.941463544"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 82] Reconcile wave 12 down [00] - Wave12down" classname="ClusterLoaderV2" time="24.983517619"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 83] Start wave 13 up [00] - Wave13up" classname="ClusterLoaderV2" time="8.402004019"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 84] Scale up wave 13" classname="ClusterLoaderV2" time="6.070253625"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 85] Reconcile wave 13 up [00] - Wave13up" classname="ClusterLoaderV2" time="24.995708737"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 86] Start wave 13 down [00] - Wave13down" classname="ClusterLoaderV2" time="1.501970486"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 87] Scale down wave 13" classname="ClusterLoaderV2" time="6.066873097"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 88] Reconcile wave 13 down [00] - Wave13down" classname="ClusterLoaderV2" time="25.072075343"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 89] Start wave 14 up [00] - Wave14up" classname="ClusterLoaderV2" time="1.50215016"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 90] Scale up wave 14" classname="ClusterLoaderV2" time="6.066510457"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 91] Reconcile wave 14 up [00] - Wave14up" classname="ClusterLoaderV2" time="23.681340975"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 92] Start wave 14 down [00] - Wave14down" classname="ClusterLoaderV2" time="1.401939835"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 93] Scale down wave 14" classname="ClusterLoaderV2" time="6.204397754"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 94] Reconcile wave 14 down [00] - Wave14down" classname="ClusterLoaderV2" time="26.088034459"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 95] Start wave 15 up [00] - Wave15up" classname="ClusterLoaderV2" time="2.10196801"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 96] Scale up wave 15" classname="ClusterLoaderV2" time="6.189911149"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 97] Reconcile wave 15 up [00] - Wave15up" classname="ClusterLoaderV2" time="25.216222058"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 98] Start wave 15 down [00] - Wave15down" classname="ClusterLoaderV2" time="0.902453603"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 99] Scale down wave 15" classname="ClusterLoaderV2" time="6.30094952"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 100] Reconcile wave 15 down [00] - Wave15down" classname="ClusterLoaderV2" time="23.682182237"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 101] Start wave 16 up [00] - Wave16up" classname="ClusterLoaderV2" time="0.801977732"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 102] Scale up wave 16" classname="ClusterLoaderV2" time="6.274028541"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 103] Reconcile wave 16 up [00] - Wave16up" classname="ClusterLoaderV2" time="20.251392211"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 104] Start wave 16 down [00] - Wave16down" classname="ClusterLoaderV2" time="0.801975279"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 105] Scale down wave 16" classname="ClusterLoaderV2" time="6.336465624"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 106] Reconcile wave 16 down [00] - Wave16down" classname="ClusterLoaderV2" time="28.412522192"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 107] Start wave 17 up [00] - Wave17up" classname="ClusterLoaderV2" time="0.801965427"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 108] Scale up wave 17" classname="ClusterLoaderV2" time="6.370063603"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 109] Reconcile wave 17 up [00] - Wave17up" classname="ClusterLoaderV2" time="22.088999202"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 110] Start wave 17 down [00] - Wave17down" classname="ClusterLoaderV2" time="4.002028913"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 111] Scale down wave 17" classname="ClusterLoaderV2" time="6.575342808"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 112] Reconcile wave 17 down [00] - Wave17down" classname="ClusterLoaderV2" time="24.99619598"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 113] Start wave 18 up [00] - Wave18up" classname="ClusterLoaderV2" time="5.901951832"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 114] Scale up wave 18" classname="ClusterLoaderV2" time="6.47905447"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 115] Reconcile wave 18 up [00] - Wave18up" classname="ClusterLoaderV2" time="24.997464637"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 116] Start wave 18 down [00] - Wave18down" classname="ClusterLoaderV2" time="1.602138353"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 117] Scale down wave 18" classname="ClusterLoaderV2" time="6.463161024"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 118] Reconcile wave 18 down [00] - Wave18down" classname="ClusterLoaderV2" time="29.03185988"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 119] Start wave 19 up [00] - Wave19up" classname="ClusterLoaderV2" time="2.101958792"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 120] Scale up wave 19" classname="ClusterLoaderV2" time="6.490039797"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 121] Reconcile wave 19 up [00] - Wave19up" classname="ClusterLoaderV2" time="24.997885812"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 122] Start wave 19 down [00] - Wave19down" classname="ClusterLoaderV2" time="4.409858112"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 123] Scale down wave 19" classname="ClusterLoaderV2" time="6.535716051"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 124] Reconcile wave 19 down [00] - Wave19down" classname="ClusterLoaderV2" time="24.997837452"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 125] Settle before delete [00] - SettleBeforeDelete" classname="ClusterLoaderV2" time="300.00270625"></testcase>
+      <testcase name="replicaset-worker-tuning: [step: 126] Delete ReplicaSets" classname="ClusterLoaderV2" time="52.045758598"></testcase>
+  </testsuite>

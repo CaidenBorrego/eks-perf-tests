@@ -1,0 +1,129 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: awscli-eks-cl2-pcp-kcm-throughput-attach
+  namespace: scalability
+spec:
+  description: |
+    Test-only: runs the KCM controller throughput test against an existing cluster.
+    No create or teardown tasks. Bind the config workspace to a Secret holding the
+    cluster kubeconfig under key "kubeconfig" (read-only is fine; nothing writes it).
+    Bind source to a PVC when install-kwok is "true", so both TaskRuns can share it
+    (each Task also clones on its own, so an emptyDir works too).
+  params:
+  - name: controller
+    default: "replicaset"
+  - name: tier
+  - name: kubernetes-version
+  - name: cl2-ref
+    default: "bc64526c4ca0bdec39c8149f822848fc27868286"
+  - name: assets-url
+  - name: assets-ref
+  - name: overrides
+    default: "overrides-4xl.yaml"
+  - name: waves
+    default: "10"
+  - name: kwok-nodes
+    default: "100"
+  - name: expected-workers
+  - name: min-rs-per-s
+  - name: busy-ratio
+    default: "0.8"
+  - name: install-kwok
+    default: "false"
+    description: '"true" installs KWOK and the fake nodes first'
+  - name: system-node-selector-key
+    description: "label key of the real node that hosts KWOK and the sampler"
+  - name: system-node-selector-value
+  - name: results-bucket
+    description: "S3 bucket and path, without s3://"
+  - name: metric-name
+  - name: region
+    default: "us-west-2"
+  - name: kubectl-image
+    default: "alpine/k8s:1.33.4"
+  tasks:
+  - name: install-kwok
+    when:
+    - input: "$(params.install-kwok)"
+      operator: in
+      values: ["true"]
+    params:
+    - name: assets-url
+      value: $(params.assets-url)
+    - name: assets-ref
+      value: $(params.assets-ref)
+    - name: kwok-nodes
+      value: $(params.kwok-nodes)
+    - name: kubectl-image
+      value: $(params.kubectl-image)
+    - name: system-node-selector-key
+      value: $(params.system-node-selector-key)
+    - name: system-node-selector-value
+      value: $(params.system-node-selector-value)
+    taskRef:
+      kind: Task
+      name: kubectl-kwok-install
+    workspaces:
+    - name: source
+      workspace: source
+    - name: config
+      workspace: config
+  - name: generate
+    params:
+    - name: controller
+      value: $(params.controller)
+    - name: tier
+      value: $(params.tier)
+    - name: kubernetes-version
+      value: "$(params.kubernetes-version)"
+    - name: cl2-ref
+      value: $(params.cl2-ref)
+    - name: assets-url
+      value: $(params.assets-url)
+    - name: assets-ref
+      value: $(params.assets-ref)
+    - name: overrides
+      value: $(params.overrides)
+    - name: waves
+      value: $(params.waves)
+    - name: kwok-nodes
+      value: $(params.kwok-nodes)
+    - name: expected-workers
+      value: $(params.expected-workers)
+    - name: min-rs-per-s
+      value: $(params.min-rs-per-s)
+    - name: busy-ratio
+      value: $(params.busy-ratio)
+    - name: system-node-selector-key
+      value: $(params.system-node-selector-key)
+    - name: system-node-selector-value
+      value: $(params.system-node-selector-value)
+    - name: results-bucket
+      value: $(params.results-bucket)
+    - name: metric-name
+      value: $(params.metric-name)
+    - name: run-id
+      value: $(context.pipelineRun.name)
+    - name: region
+      value: $(params.region)
+    - name: kubectl-image
+      value: $(params.kubectl-image)
+    # Skipping install-kwok (when guard) does not skip generate: when expressions
+    # guard only their own task.
+    runAfter:
+    - install-kwok
+    taskRef:
+      kind: Task
+      name: kcm-controller-throughput
+    workspaces:
+    - name: source
+      workspace: source
+    - name: results
+      workspace: results
+    - name: config
+      workspace: config
+  workspaces:
+  - name: source
+  - name: results
+  - name: config

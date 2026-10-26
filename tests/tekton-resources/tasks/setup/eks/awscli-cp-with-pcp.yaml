@@ -30,6 +30,9 @@ spec:
   - name: control-plane-tier
     default: "standard"
     description: "Provisioned Control Plane tier, default to standard"
+  - name: coredns-replicas
+    default: "1000"
+    description: "CoreDNS replicas to scale to after install"
   workspaces:
   - name: config
     mountPath: /config/
@@ -133,4 +136,4 @@ spec:
           }
         }
       }' -n kube-system
-      kubectl scale --replicas 1000 deploy coredns -n kube-system
+      kubectl scale --replicas $(params.coredns-replicas) deploy coredns -n kube-system

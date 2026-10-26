@@ -1,0 +1,177 @@
+# ReplicaSet controller load test for KCM worker tuning.
+# Each run: create RS_TOTAL ReplicaSets, then WAVES times: scale every
+# ReplicaSet BASE -> BASE+1 at LOAD_QPS patches/s and wait until all are
+# reconciled, then the same back down. Then wait POST_SETTLE and delete.
+{{$NAMESPACES := DefaultParam .CL2_NAMESPACES 50}}
+{{$RS_PER_NAMESPACE := DefaultParam .CL2_RS_PER_NAMESPACE 100}}
+{{$BASE_REPLICAS := DefaultParam .CL2_BASE_REPLICAS 2}}
+{{$SETUP_QPS := DefaultParam .CL2_SETUP_QPS 100}}
+{{$LOAD_QPS := DefaultParam .CL2_LOAD_QPS 1000}}
+{{$WAVES := DefaultParam .CL2_WAVES 10}}
+{{$SETTLE := DefaultParam .CL2_SETTLE "5m"}}
+{{$POST_SETTLE := DefaultParam .CL2_POST_SETTLE "5m"}}
+{{$TEST_LABEL_KEY := DefaultParam .CL2_TEST_LABEL_KEY "group"}}
+{{$TEST_LABEL_VALUE := DefaultParam .CL2_TEST_LABEL_VALUE "rs-test"}}
+# Mixed sizes (off by default). On: per namespace, BIG_PER_NS ReplicaSets scale
+# BASE <-> BIG_REPLICAS ("big", label size=big) and the rest BASE <-> BASE+1
+# ("small"). The big phase runs next to the small one at a lower rate, so the
+# big patches are spread over the same ~5 s as the small patches.
+# Idle gap after each reconciled half-wave (e.g. "120s"; "0s" = none), so 1-minute
+# CloudWatch values can be attributed to single waves.
+{{$WAVE_GAP := DefaultParam .CL2_WAVE_GAP "0s"}}
+{{$MIX := DefaultParam .CL2_MIX false}}
+{{$BIG_PER_NS := DefaultParam .CL2_BIG_PER_NAMESPACE 2}}
+{{$BIG_REPLICAS := DefaultParam .CL2_BIG_REPLICAS 50}}
+{{$SMALL_PER_NS := IfThenElse $MIX (SubtractInt $RS_PER_NAMESPACE $BIG_PER_NS) $RS_PER_NAMESPACE}}
+{{$BIG_LOAD_QPS := DivideFloat (MultiplyFloat $LOAD_QPS $BIG_PER_NS) $SMALL_PER_NS}}
+
+name: replicaset-worker-tuning
+namespace:
+  number: {{$NAMESPACES}}
+  prefix: rs-test
+tuningSets:
+- name: Setup
+  qpsLoad:
+    qps: {{$SETUP_QPS}}
+- name: Load
+  qpsLoad:
+    qps: {{$LOAD_QPS}}
+- name: LoadBig
+  qpsLoad:
+    qps: {{$BIG_LOAD_QPS}}
+steps:
+- name: Start pods-running measurement
+  measurements:
+  - Identifier: WaitForReplicaSetsRunning
+    Method: WaitForControlledPodsRunning
+    Params:
+      action: start
+      apiVersion: apps/v1
+      kind: ReplicaSet
+      labelSelector: group = rs-test
+      operationTimeout: 20m
+
+- name: Create test objects
+  phases:
+  - namespaceRange: {min: 1, max: {{$NAMESPACES}}}
+    replicasPerNamespace: {{$SMALL_PER_NS}}
+    tuningSet: Setup
+    objectBundle:
+    - basename: rs
+      objectTemplatePath: rs.yaml
+      templateFillMap:
+        Replicas: {{$BASE_REPLICAS}}
+        Size: small
+{{if $MIX}}
+  - namespaceRange: {min: 1, max: {{$NAMESPACES}}}
+    replicasPerNamespace: {{$BIG_PER_NS}}
+    tuningSet: Setup
+    objectBundle:
+    - basename: rs-big
+      objectTemplatePath: rs.yaml
+      templateFillMap:
+        Replicas: {{$BASE_REPLICAS}}
+        Size: big
+{{end}}
+
+- name: Wait for setup pods
+  measurements:
+  - Identifier: WaitForReplicaSetsRunning
+    Method: WaitForControlledPodsRunning
+    Params:
+      action: gather
+
+- name: Settle before load
+  measurements:
+  - Identifier: Settle
+    Method: Sleep
+    Params:
+      duration: {{$SETTLE}}
+
+# Closed-loop waves: each wave changes every ReplicaSet once (all up, or all
+# down) and waits until all are reconciled before the next wave. So every
+# change is real work (no coalescing in the queue), and junit gives the time
+# to reconcile RS_TOTAL changes per wave: throughput = RS_TOTAL / (Scale + Reconcile).
+{{range $i := Loop $WAVES}}
+{{range $dir := StringSplit "up,down"}}
+- name: Start wave {{$i}} {{$dir}}
+  measurements:
+  - Identifier: Wave{{$i}}{{$dir}}
+    Method: WaitForControlledPodsRunning
+    Params:
+      action: start
+      apiVersion: apps/v1
+      kind: ReplicaSet
+      labelSelector: group = rs-test
+      operationTimeout: 60m
+- name: Scale {{$dir}} wave {{$i}}
+  phases:
+  - namespaceRange: {min: 1, max: {{$NAMESPACES}}}
+    replicasPerNamespace: {{$SMALL_PER_NS}}
+    tuningSet: Load
+    objectBundle:
+    - basename: rs
+      objectTemplatePath: rs.yaml
+      templateFillMap:
+        Replicas: {{IfThenElse (eq $dir "up") (AddInt $BASE_REPLICAS 1) $BASE_REPLICAS}}
+        Size: small
+{{if $MIX}}
+  - namespaceRange: {min: 1, max: {{$NAMESPACES}}}
+    replicasPerNamespace: {{$BIG_PER_NS}}
+    tuningSet: LoadBig
+    objectBundle:
+    - basename: rs-big
+      objectTemplatePath: rs.yaml
+      templateFillMap:
+        Replicas: {{IfThenElse (eq $dir "up") $BIG_REPLICAS $BASE_REPLICAS}}
+        Size: big
+{{end}}
+- name: Reconcile wave {{$i}} {{$dir}}
+  measurements:
+  - Identifier: Wave{{$i}}{{$dir}}
+    Method: WaitForControlledPodsRunning
+    Params:
+      action: gather
+{{if ne $WAVE_GAP "0s"}}
+- name: Gap after wave {{$i}} {{$dir}}
+  measurements:
+  - Identifier: Gap{{$i}}{{$dir}}
+    Method: Sleep
+    Params:
+      duration: {{$WAVE_GAP}}
+{{end}}
+{{end}}
+{{end}}
+
+- name: Settle before delete
+  measurements:
+  - Identifier: SettleBeforeDelete
+    Method: Sleep
+    Params:
+      duration: {{$POST_SETTLE}}
+
+- name: Delete test objects
+  phases:
+  - namespaceRange: {min: 1, max: {{$NAMESPACES}}}
+    replicasPerNamespace: 0
+    tuningSet: Setup
+    objectBundle:
+    - basename: rs
+      objectTemplatePath: rs.yaml
+      templateFillMap:
+        Replicas: {{$BASE_REPLICAS}}
+        Size: small
+{{if $MIX}}
+  - namespaceRange: {min: 1, max: {{$NAMESPACES}}}
+    replicasPerNamespace: 0
+    tuningSet: Setup
+    objectBundle:
+    - basename: rs-big
+      objectTemplatePath: rs.yaml
+      templateFillMap:
+        Replicas: {{$BASE_REPLICAS}}
+        Size: big
+{{end}}
+
+# CL2 runs with --delete-automanaged-namespaces=false; the kcm-controller-throughput
+# Task deletes the empty namespaces and checks cleanup. Metrics use only the load window.

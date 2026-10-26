@@ -1,0 +1,31 @@
+# Replaces the FlowSchema bundled in kwok.yaml (same name, applied after it):
+# upstream puts the KWOK controller in "exempt"; here its pod/node status churn goes
+# to workload-low so it does not share workload-high with KCM controller traffic.
+# Precedence 800 sorts before kube-system-service-accounts (900).
+# flowcontrol.apiserver.k8s.io/v1 needs Kubernetes >= 1.29 (the vendored kwok.yaml
+# uses v1 too); on 1.28 both would need v1beta3.
+apiVersion: flowcontrol.apiserver.k8s.io/v1
+kind: FlowSchema
+metadata:
+  name: kwok-controller
+spec:
+  matchingPrecedence: 800
+  priorityLevelConfiguration:
+    name: workload-low
+  distinguisherMethod:
+    type: ByUser
+  rules:
+  - subjects:
+    - kind: ServiceAccount
+      serviceAccount:
+        name: kwok-controller
+        namespace: kube-system
+    resourceRules:
+    - apiGroups: ["*"]
+      resources: ["*"]
+      verbs: ["*"]
+      clusterScope: true
+      namespaces: ["*"]
+    nonResourceRules:
+    - nonResourceURLs: ["*"]
+      verbs: ["*"]

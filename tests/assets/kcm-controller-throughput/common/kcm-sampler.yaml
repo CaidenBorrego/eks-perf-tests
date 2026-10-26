@@ -1,0 +1,74 @@
+# KCM workqueue sampler for kcm-controller-throughput.
+# The Task's prepare step replaces __IPS__ (space-separated master IPs from
+# Endpoints default/kubernetes), __CONTROLLER__ (workqueue name, e.g. replicaset)
+# and __NODE_SELECTOR_KEY__/__NODE_SELECTOR_VALUE__ with sed before applying.
+# Each master serves only its own KCM's metrics, so every IP is scraped every 15 s
+# and evaluate.py picks the leader's series. Output lines: "<epoch> <ip> <metric line>".
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kcm-probe
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kcm-sampler
+  namespace: kcm-probe
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kcm-sampler
+rules:
+- apiGroups: ["metrics.eks.amazonaws.com"]
+  resources: ["kcm/metrics"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kcm-sampler
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kcm-sampler
+subjects:
+- kind: ServiceAccount
+  name: kcm-sampler
+  namespace: kcm-probe
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kcm-sampler
+  namespace: kcm-probe
+spec:
+  serviceAccountName: kcm-sampler
+  restartPolicy: Never
+  nodeSelector:
+    __NODE_SELECTOR_KEY__: "__NODE_SELECTOR_VALUE__"
+  tolerations:
+  - key: monitoring
+    operator: Exists
+    effect: NoSchedule
+  containers:
+  - name: sampler
+    image: curlimages/curl:8.10.1
+    command: ["/bin/sh", "-c"]
+    args:
+    - |
+      while true; do
+        # Re-read every round: the projected SA token is rotated by the kubelet.
+        TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+        ts=$(date +%s)
+        for ip in __IPS__; do
+          curl -sk --max-time 10 -H "Authorization: Bearer $TOKEN" "https://$ip:443/apis/metrics.eks.amazonaws.com/v1/kcm/container/metrics" \
+            | grep -E '^workqueue_(work_duration_seconds_sum|work_duration_seconds_count|depth|adds_total)\{name="__CONTROLLER__"\} ' \
+            | sed "s/^/$ts $ip /"
+        done
+        sleep 15
+      done
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi

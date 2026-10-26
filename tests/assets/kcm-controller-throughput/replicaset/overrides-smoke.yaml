@@ -1,0 +1,6 @@
+# Smoke test of the runner and config (not a load test): 5 ReplicaSets.
+CL2_NAMESPACES: 1
+CL2_RS_PER_NAMESPACE: 5
+CL2_LOAD_QPS: 1000
+CL2_SETTLE: 10s
+CL2_POST_SETTLE: 10s

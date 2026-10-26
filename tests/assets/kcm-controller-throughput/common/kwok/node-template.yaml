@@ -1,0 +1,41 @@
+# Rendered N times by the kubectl-kwok-install Task (__NAME__ -> kwok-node-<i>).
+# pods: "250" because the up-wave holds 5,000 x 3 = 15,000 pods on 100 nodes.
+apiVersion: v1
+kind: Node
+metadata:
+  name: __NAME__
+  annotations:
+    node.alpha.kubernetes.io/ttl: "0"
+    kwok.x-k8s.io/node: fake
+  labels:
+    type: kwok
+    kubernetes.io/arch: amd64
+    kubernetes.io/os: linux
+    kubernetes.io/hostname: __NAME__
+    kubernetes.io/role: agent
+    node-role.kubernetes.io/agent: ""
+spec:
+  taints:
+  - key: kwok.x-k8s.io/node
+    value: fake
+    effect: NoSchedule
+status:
+  allocatable:
+    cpu: "32"
+    memory: 256Gi
+    pods: "250"
+  capacity:
+    cpu: "32"
+    memory: 256Gi
+    pods: "250"
+  nodeInfo:
+    architecture: amd64
+    operatingSystem: linux
+    kubeletVersion: fake
+    kubeProxyVersion: fake
+    bootID: ""
+    machineID: ""
+    systemUUID: ""
+    kernelVersion: ""
+    osImage: ""
+    containerRuntimeVersion: ""

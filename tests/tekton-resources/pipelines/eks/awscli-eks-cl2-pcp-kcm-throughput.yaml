@@ -1,0 +1,287 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: awscli-eks-cl2-pcp-kcm-throughput
+  namespace: scalability
+spec:
+  description: |
+    KCM controller throughput regression test on a provisioned control plane (PCP).
+    Sends a slack notification, creates an EKS cluster at the given tier in its own VPC
+    with one tainted monitoring node and KWOK fake nodes (no worker MNG), runs a CL2
+    closed-loop wave load for one controller, grades it, uploads results to S3, emits
+    CloudWatch datapoints, tears the cluster down and sends a slack notification.
+  params:
+  - name: cluster-name
+  - name: endpoint
+  - name: metric-name
+    default: 'pcp-kcm-throughput'
+  - name: results-bucket
+  - name: slack-hook
+  - name: slack-message
+  - name: vpc-cfn-url
+  - name: ng-cfn-url
+    default: "https://raw.githubusercontent.com/awslabs/eks-perf-tests/refs/heads/main/tests/assets/eks_node_group_launch_template_pcp.json"
+    type: string
+  - name: kubernetes-version
+    default: "1.33"
+  - name: service-role-cfn-url
+    default: "https://raw.githubusercontent.com/awslabs/kubernetes-iteration-toolkit/main/tests/assets/eks_service_role.json"
+  - name: node-role-cfn-url
+    default: "https://raw.githubusercontent.com/awslabs/kubernetes-iteration-toolkit/main/tests/assets/eks_node_role.json"
+  - name: control-plane-tier
+    default: "standard"
+    description: "Provisioned control plane tier, default standard"
+  - name: controller
+    default: "replicaset"
+    description: "KCM controller under test (assets folder and workqueue name)"
+  - name: tier
+    description: "PCP tier label for metrics, e.g. 4xl"
+  - name: cl2-ref
+    default: "bc64526c4ca0bdec39c8149f822848fc27868286"
+    description: "kubernetes/perf-tests commit for ClusterLoader2"
+  - name: assets-url
+    description: "git URL of the repo holding tests/assets/kcm-controller-throughput"
+  - name: assets-ref
+    description: "commit, tag or branch of assets-url"
+  - name: overrides
+    default: "overrides-4xl.yaml"
+  - name: waves
+    default: "10"
+  - name: kwok-nodes
+    default: "100"
+  - name: expected-workers
+    description: "--concurrent-<controller>-syncs configured on the cluster"
+  - name: min-rs-per-s
+    description: "throughput gate: median changes/s per half-wave"
+  - name: busy-ratio
+    default: "0.8"
+  - name: coredns-replicas
+    default: "0"
+    description: "CoreDNS replicas; 0 because no node here can run CoreDNS and pending pods add controller noise"
+  - name: kubectl-image
+    default: "alpine/k8s:1.33.4"
+  tasks:
+  - name: slack-notification
+    params:
+    - name: slack-hook
+      value: $(params.slack-hook)
+    - name: slack-message
+      value: "$(params.slack-message) job kicked off"
+    taskRef:
+      kind: Task
+      name:  slack-notification
+  - name: awscli-vpc-create
+    params:
+    - name: stack-name
+      value: $(params.cluster-name)
+    - name: vpc-cfn-url
+      value: "$(params.vpc-cfn-url)"
+    taskRef:
+      kind: Task
+      name:  awscli-vpc-create
+  - name: create-cluster-service-role
+    params:
+    - name: stack-name
+      value: $(params.cluster-name)-service-role
+    - name: role-cfn-url
+      value: $(params.service-role-cfn-url)
+    - name: role-name
+      value: "$(params.cluster-name)-service-role"
+    taskRef:
+      kind: Task
+      name: awscli-role-create
+  - name: create-cluster-node-role
+    params:
+    - name: stack-name
+      value: $(params.cluster-name)-node-role
+    - name: role-cfn-url
+      value: $(params.node-role-cfn-url)
+    - name: role-name
+      value: "$(params.cluster-name)-node-role"
+    taskRef:
+      kind: Task
+      name: awscli-role-create
+  - name: create-eks-cluster
+    params:
+    - name: cluster-name
+      value: $(params.cluster-name)
+    - name: service-role-name
+      value: "$(params.cluster-name)-service-role"
+    - name: endpoint
+      value: $(params.endpoint)
+    - name: vpc-stack-name
+      value: $(params.cluster-name)
+    - name: kubernetes-version
+      value: "$(params.kubernetes-version)"
+    - name: control-plane-tier
+      value: "$(params.control-plane-tier)"
+    - name: coredns-replicas
+      value: "$(params.coredns-replicas)"
+    runAfter:
+    - create-cluster-node-role
+    - create-cluster-service-role
+    - awscli-vpc-create
+    taskRef:
+      kind: Task
+      name: awscli-eks-cluster-create-with-pcp-stack
+    workspaces:
+    - name: config
+      workspace: config
+  - name: create-cfn-launch-template
+    params:
+      - name: cluster-name
+        value: $(params.cluster-name)
+      - name: stack-name
+        value: $(params.cluster-name)-launch-template
+      - name: kubernetes-version
+        value: "$(params.kubernetes-version)"
+      - name: ng-cfn-url
+        value: "$(params.ng-cfn-url)"
+      - name: endpoint
+        value: $(params.endpoint)
+    runAfter:
+      - create-eks-cluster
+    taskRef:
+      kind: Task
+      name: awscli-eks-cfn-launch-template
+    workspaces:
+      - name: config
+        workspace: config
+  - name: create-mng-monitoring-nodes
+    params:
+    - name: cluster-name
+      value: $(params.cluster-name)
+    - name: host-cluster-node-role-name
+      value: "$(params.cluster-name)-node-role"
+    - name: endpoint
+      value: $(params.endpoint)
+    - name: desired-nodes
+      value: "1"
+    - name: max-nodes
+      value: "1"
+    - name: host-instance-types
+      value: "m5.8xlarge"
+    - name: host-taints
+      value: "key=monitoring,value=true,effect=NO_SCHEDULE"
+    - name: nodegroup-prefix
+      value: "monitoring-"
+    runAfter:
+    - create-cfn-launch-template
+    taskRef:
+      kind: Task
+      name:  awscli-eks-nodegroup-create
+    workspaces:
+    - name: config
+      workspace: config
+  - name: install-fluentbit-addon
+    params:
+    - name: cluster-name
+      value: $(params.cluster-name)
+    runAfter:
+    - create-mng-monitoring-nodes
+    taskRef:
+      kind: Task
+      name: eks-addon-fluentbit
+    workspaces:
+    - name: config
+      workspace: config
+  - name: install-kwok
+    params:
+    - name: assets-url
+      value: $(params.assets-url)
+    - name: assets-ref
+      value: $(params.assets-ref)
+    - name: kwok-nodes
+      value: $(params.kwok-nodes)
+    - name: kubectl-image
+      value: $(params.kubectl-image)
+    - name: system-node-selector-key
+      value: "eks.amazonaws.com/nodegroup"
+    # awscli-eks-nodegroup-create names nodegroups <prefix><cluster-name>-nodes-<i>.
+    - name: system-node-selector-value
+      value: "monitoring-$(params.cluster-name)-nodes-1"
+    runAfter:
+    - install-fluentbit-addon
+    taskRef:
+      kind: Task
+      name: kubectl-kwok-install
+    workspaces:
+    - name: source
+      workspace: source
+    - name: config
+      workspace: config
+  - name: generate
+    params:
+    - name: controller
+      value: $(params.controller)
+    - name: tier
+      value: $(params.tier)
+    - name: kubernetes-version
+      value: "$(params.kubernetes-version)"
+    - name: cl2-ref
+      value: $(params.cl2-ref)
+    - name: assets-url
+      value: $(params.assets-url)
+    - name: assets-ref
+      value: $(params.assets-ref)
+    - name: overrides
+      value: $(params.overrides)
+    - name: waves
+      value: $(params.waves)
+    - name: kwok-nodes
+      value: $(params.kwok-nodes)
+    - name: expected-workers
+      value: $(params.expected-workers)
+    - name: min-rs-per-s
+      value: $(params.min-rs-per-s)
+    - name: busy-ratio
+      value: $(params.busy-ratio)
+    - name: system-node-selector-key
+      value: "eks.amazonaws.com/nodegroup"
+    - name: system-node-selector-value
+      value: "monitoring-$(params.cluster-name)-nodes-1"
+    - name: results-bucket
+      value: $(params.results-bucket)
+    - name: metric-name
+      value: $(params.metric-name)
+    - name: run-id
+      value: $(context.pipelineRun.name)
+    - name: kubectl-image
+      value: $(params.kubectl-image)
+    runAfter:
+    - install-kwok
+    taskRef:
+      kind: Task
+      name: kcm-controller-throughput
+    workspaces:
+    - name: source
+      workspace: source
+    - name: results
+      workspace: results
+    - name: config
+      workspace: config
+  finally:
+  - name: teardown
+    retries: 10 # To deal with throttling during deletion
+    params:
+    - name: cluster-name
+      value: $(params.cluster-name)
+    - name: endpoint
+      value: $(params.endpoint)
+    - name: slack-hook
+      value: $(params.slack-hook)
+    - name: slack-message
+      value: "$(params.slack-message) job completed"
+    - name: service-role-stack-name
+      value: $(params.cluster-name)-service-role
+    - name: node-role-stack-name
+      value: $(params.cluster-name)-node-role
+    - name: launch-template-stack-name
+      value: $(params.cluster-name)-launch-template
+    taskRef:
+      kind: Task
+      name:  awscli-eks-cluster-teardown
+  workspaces:
+  - name: source
+  - name: results
+  - name: config

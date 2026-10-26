@@ -1,0 +1,71 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: kubectl-kwok-install
+  namespace: scalability
+spec:
+  description: |
+    Installs KWOK (pinned, vendored under tests/assets/kcm-controller-throughput/common/kwok)
+    and N fake nodes labelled type=kwok. The KWOK controller is pinned to the system node.
+    Idempotent: does nothing when N KWOK nodes are already Ready.
+  params:
+  - name: assets-url
+    description: "git URL of the repo holding tests/assets/kcm-controller-throughput"
+  - name: assets-ref
+    description: "commit, tag or branch of assets-url to check out"
+  - name: kwok-nodes
+    default: "100"
+  - name: system-node-selector-key
+    default: "eks.amazonaws.com/nodegroup"
+  - name: system-node-selector-value
+    description: "label value of the real node that hosts the KWOK controller"
+  - name: kubectl-image
+    default: "alpine/k8s:1.33.4"
+  workspaces:
+  - name: source
+    mountPath: /src/
+  - name: config
+    mountPath: /config/
+  stepTemplate:
+    env:
+    - name: KUBECONFIG
+      value: /config/kubeconfig
+  steps:
+  - name: clone-assets
+    image: alpine/git
+    workingDir: $(workspaces.source.path)
+    script: |
+      #!/bin/sh
+      set -eu
+      [ -d assets/.git ] || git clone "$(params.assets-url)" assets
+      cd assets
+      git fetch origin --tags
+      # A branch name must resolve to the freshly fetched remote tip, not a stale local branch.
+      git checkout --detach "origin/$(params.assets-ref)" 2>/dev/null || git checkout --detach "$(params.assets-ref)"
+      git log -1 --format='assets at %H'
+  - name: install
+    image: $(params.kubectl-image)
+    script: |
+      #!/bin/bash
+      set -euo pipefail
+      K=$(workspaces.source.path)/assets/tests/assets/kcm-controller-throughput/common/kwok
+      N=$(params.kwok-nodes)
+      count_ready() { kubectl get nodes -l type=kwok --no-headers 2>/dev/null | grep -c ' Ready' || true; }
+      ready=$(count_ready)
+      if [ "$ready" -ge "$N" ]; then echo "KWOK already has $ready Ready nodes"; exit 0; fi
+      kubectl apply -f "$K/kwok.yaml"
+      kubectl apply -f "$K/stage-fast.yaml"
+      # Same name as the FlowSchema in kwok.yaml, so this replaces it (exempt -> workload-low).
+      kubectl apply -f "$K/flowschema.yaml"
+      PATCH=$(printf '{"spec":{"template":{"spec":{"nodeSelector":{"%s":"%s"},"tolerations":[{"key":"monitoring","operator":"Exists","effect":"NoSchedule"}]}}}}' \
+        "$(params.system-node-selector-key)" "$(params.system-node-selector-value)")
+      kubectl -n kube-system patch deployment kwok-controller --type merge -p "$PATCH"
+      kubectl -n kube-system rollout status deployment kwok-controller --timeout=10m
+      for i in $(seq 0 $((N-1))); do sed "s/__NAME__/kwok-node-$i/g" "$K/node-template.yaml"; echo "---"; done | kubectl apply -f -
+      for t in $(seq 1 60); do
+        ready=$(count_ready)
+        if [ "$ready" -ge "$N" ]; then echo "$ready KWOK nodes Ready"; exit 0; fi
+        sleep 10
+      done
+      echo "only $ready/$N KWOK nodes Ready" >&2
+      exit 1

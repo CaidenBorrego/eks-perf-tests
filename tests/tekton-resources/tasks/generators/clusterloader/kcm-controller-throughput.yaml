@@ -1,0 +1,207 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: kcm-controller-throughput
+  namespace: scalability
+spec:
+  description: |
+    ClusterLoader2 closed-loop wave load for one KCM controller on KWOK nodes. Grades
+    throughput (junit) and busy workers (in-cluster KCM metrics API, leader only),
+    uploads the run to S3, emits CloudWatch datapoints, then exits non-zero on failure.
+  params:
+  - name: controller
+    default: "replicaset"
+    description: "assets sub-folder and workqueue name"
+  - name: tier
+    description: "PCP tier, e.g. 4xl (CloudWatch dimension only)"
+  - name: kubernetes-version
+    description: "CloudWatch namespace of the 0/1 datapoint, same as the other PCP tests"
+  - name: cl2-ref
+    default: "bc64526c4ca0bdec39c8149f822848fc27868286"
+    description: "kubernetes/perf-tests commit for ClusterLoader2"
+  - name: giturl
+    default: "https://github.com/kubernetes/perf-tests.git"
+  - name: assets-url
+    description: "git URL of the repo holding tests/assets/kcm-controller-throughput"
+  - name: assets-ref
+    description: "commit, tag or branch of assets-url to check out"
+  - name: overrides
+    default: "overrides-4xl.yaml"
+    description: "tier overrides file in the controller's assets folder"
+  - name: waves
+    default: "10"
+  - name: kwok-nodes
+    default: "100"
+  - name: expected-workers
+    description: "--concurrent-<controller>-syncs configured on the cluster"
+  - name: min-rs-per-s
+    description: "throughput gate: median ReplicaSet changes/s per half-wave"
+  - name: busy-ratio
+    default: "0.8"
+  - name: system-node-selector-key
+    default: "eks.amazonaws.com/nodegroup"
+  - name: system-node-selector-value
+    description: "label value of the real node that hosts the sampler pod"
+  - name: results-bucket
+    description: "S3 bucket and path, without s3:// (same convention as the other CL2 Tasks)"
+  - name: metric-name
+    description: "0/1 CloudWatch metric, e.g. pcp-kcm-throughput-4xl"
+  - name: run-id
+    default: ""
+    description: "RunId dimension; empty uses the TaskRun name"
+  - name: region
+    default: "us-west-2"
+  - name: kubectl-image
+    default: "alpine/k8s:1.33.4"
+  results:
+  - name: datapoint
+    description: "0 pass, 1 fail"
+  - name: rs_per_s
+  - name: busy_workers
+  - name: s3_result
+  workspaces:
+  - name: source
+    mountPath: /src/
+  - name: results
+  - name: config
+    mountPath: /config/
+  stepTemplate:
+    env:
+    - name: KUBECONFIG
+      value: /config/kubeconfig
+    - name: RUN_DIR
+      value: $(workspaces.results.path)/run
+    - name: ASSETS
+      value: $(workspaces.source.path)/assets/tests/assets/kcm-controller-throughput
+  steps:
+  - name: git-clone
+    image: alpine/git
+    workingDir: $(workspaces.source.path)
+    script: |
+      #!/bin/sh
+      set -eu
+      [ -d perf-tests/.git ] || git clone "$(params.giturl)" perf-tests
+      (cd perf-tests && git fetch origin --tags && git checkout --detach "$(params.cl2-ref)" && git log -1 --format='perf-tests at %H')
+      [ -d assets/.git ] || git clone "$(params.assets-url)" assets
+      cd assets
+      git fetch origin --tags
+      # A branch name must resolve to the freshly fetched remote tip, not a stale local branch.
+      git checkout --detach "origin/$(params.assets-ref)" 2>/dev/null || git checkout --detach "$(params.assets-ref)"
+      git log -1 --format='assets at %H'
+      [ -f "tests/assets/kcm-controller-throughput/$(params.controller)/$(params.overrides)" ]
+  - name: build
+    image: golang:1.26
+    workingDir: $(workspaces.source.path)/perf-tests/clusterloader2
+    script: |
+      #!/bin/sh
+      set -eu
+      GOOS=linux CGO_ENABLED=0 go build -o ./clusterloader ./cmd
+  - name: prepare
+    image: $(params.kubectl-image)
+    script: |
+      #!/bin/bash
+      # Preflight. Any failure here fails the Task without a datapoint; the alarm treats
+      # missing data as breaching.
+      set -euo pipefail
+      rm -rf "$RUN_DIR"; mkdir -p "$RUN_DIR/artifacts"
+      CDIR=$ASSETS/$(params.controller)
+      ready=$(kubectl get nodes -l type=kwok --no-headers | grep -c ' Ready' || true)
+      [ "$ready" -ge "$(params.kwok-nodes)" ] || { echo "only $ready KWOK nodes Ready" >&2; exit 1; }
+      left=$(kubectl get ns --no-headers -o custom-columns=:metadata.name | grep -c '^rs-test' || true)
+      [ "$left" -eq 0 ] || { echo "$left rs-test namespaces already exist" >&2; exit 1; }
+      IPS=$(kubectl get endpoints kubernetes -n default -o jsonpath='{.subsets[*].addresses[*].ip}')
+      [ -n "$IPS" ] || { echo "no master IPs in Endpoints default/kubernetes" >&2; exit 1; }
+      echo "$IPS" | tr ' ' '\n' | sort > "$RUN_DIR/ips.before"
+      kubectl delete ns kcm-probe --ignore-not-found --wait=true
+      sed -e "s|__IPS__|$IPS|" -e "s|__CONTROLLER__|$(params.controller)|" \
+          -e "s|__NODE_SELECTOR_KEY__|$(params.system-node-selector-key)|" \
+          -e "s|__NODE_SELECTOR_VALUE__|$(params.system-node-selector-value)|" \
+          "$ASSETS/common/kcm-sampler.yaml" | kubectl apply -f -
+      kubectl -n kcm-probe wait --for=condition=Ready pod/kcm-sampler --timeout=5m
+      sleep 30
+      # Read the logs first: "kubectl logs | grep -q" can fail under pipefail (SIGPIPE).
+      LOGS=$(kubectl -n kcm-probe logs kcm-sampler)
+      grep -q "name=\"$(params.controller)\"" <<<"$LOGS" || { echo "sampler sees no $(params.controller) queue on any master" >&2; exit 1; }
+      kubectl -n kube-system get lease kube-controller-manager -o jsonpath='{.spec.holderIdentity} {.spec.leaseTransitions}' > "$RUN_DIR/lease.before"
+      printf 'CL2_WAVES: %s\nCL2_MIX: false\nCL2_WAVE_GAP: "0s"\n' "$(params.waves)" > "$RUN_DIR/run-overrides.yaml"
+      cp "$CDIR/$(params.overrides)" "$RUN_DIR/"
+      cat "$RUN_DIR/ips.before" "$RUN_DIR/lease.before"; echo
+  - name: run-loadtest
+    image: $(params.kubectl-image)
+    workingDir: $(workspaces.source.path)/assets/tests/assets/kcm-controller-throughput/$(params.controller)
+    script: |
+      #!/bin/bash
+      # Never fails the step: the outcome is graded by evaluate.
+      set +e
+      date +%s > "$RUN_DIR/start.epoch"
+      # The exec service (on by default) needs an untainted real node; this cluster has none.
+      $(workspaces.source.path)/perf-tests/clusterloader2/clusterloader \
+        --kubeconfig="$KUBECONFIG" --provider=eks --nodes=$(params.kwok-nodes) \
+        --k8s-clients-number=20 --delete-automanaged-namespaces=false --enable-exec-service=false \
+        --testconfig=config.yaml --testoverrides="$(params.overrides)" --testoverrides="$RUN_DIR/run-overrides.yaml" \
+        --report-dir="$RUN_DIR/artifacts" --alsologtostderr --v=2 > "$RUN_DIR/cl2.log" 2>&1
+      echo $? > "$RUN_DIR/cl2.exit"
+      tail -50 "$RUN_DIR/cl2.log"
+      echo "cl2 exit: $(cat "$RUN_DIR/cl2.exit")"
+      exit 0
+  - name: collect
+    image: $(params.kubectl-image)
+    script: |
+      #!/bin/bash
+      # Best effort; a missing or empty file fails the matching check in evaluate.
+      set -uo pipefail
+      kubectl -n kube-system get lease kube-controller-manager -o jsonpath='{.spec.holderIdentity} {.spec.leaseTransitions}' > "$RUN_DIR/lease.after"
+      if IPS=$(kubectl get endpoints kubernetes -n default -o jsonpath='{.subsets[*].addresses[*].ip}'); then
+        echo "$IPS" | tr ' ' '\n' | sort > "$RUN_DIR/ips.after"
+      fi
+      kubectl -n kcm-probe logs kcm-sampler > "$RUN_DIR/samples.txt"
+      kubectl delete ns kcm-probe --ignore-not-found --wait=false
+      kubectl delete clusterrolebinding,clusterrole kcm-sampler --ignore-not-found
+      NS=$(kubectl get ns --no-headers -o custom-columns=:metadata.name | grep '^rs-test' || true)
+      [ -n "$NS" ] && kubectl delete ns $NS --wait=true --timeout=20m
+      if PODS=$(kubectl get pods -A -l group=rs-test --no-headers 2>/dev/null); then
+        grep -c . <<<"$PODS" > "$RUN_DIR/leftover.pods" || true
+      else
+        echo unknown > "$RUN_DIR/leftover.pods"
+      fi
+      echo "leftover test pods: $(cat "$RUN_DIR/leftover.pods")"
+      exit 0
+  - name: evaluate
+    image: python:3.12-alpine
+    env:
+    - name: OVERRIDES
+      value: "$(workspaces.results.path)/run/$(params.overrides) $(workspaces.results.path)/run/run-overrides.yaml"
+    - name: EXPECTED_WORKERS
+      value: $(params.expected-workers)
+    - name: MIN_RS_PER_S
+      value: $(params.min-rs-per-s)
+    - name: BUSY_RATIO
+      value: $(params.busy-ratio)
+    - name: WAVES
+      value: $(params.waves)
+    script: |
+      #!/bin/sh
+      set -eu
+      python3 "$ASSETS/evaluate.py" || echo '{"passed":false,"datapoint":1,"checks":{"evaluate_ran":false},"metrics":{"rs_per_s_median":0,"busy_workers":0}}' > "$RUN_DIR/verdict.json"
+      python3 - "$RUN_DIR/verdict.json" "$(results.datapoint.path)" "$(results.rs_per_s.path)" "$(results.busy_workers.path)" <<'EOF'
+      import json, sys
+      v = json.load(open(sys.argv[1]))
+      for path, val in zip(sys.argv[2:], (v["datapoint"], v["metrics"].get("rs_per_s_median", 0), v["metrics"].get("busy_workers", 0))):
+          open(path, "w").write(str(val))
+      EOF
+  - name: publish
+    image: amazon/aws-cli
+    script: |
+      #!/bin/bash
+      set -uo pipefail
+      DP=$(cat $(results.datapoint.path)); RS=$(cat $(results.rs_per_s.path)); BW=$(cat $(results.busy_workers.path))
+      RID="$(params.run-id)"; RID=${RID:-$(context.taskRun.name)}
+      echo -n "$(params.results-bucket)" > $(results.s3_result.path)
+      aws s3 cp --recursive "$RUN_DIR" "s3://$(params.results-bucket)/" || echo "S3 upload failed" >&2
+      aws cloudwatch --region $(params.region) put-metric-data --namespace "$(params.kubernetes-version)" --metric-name "$(params.metric-name)" --dimensions Nodes=$(params.kwok-nodes) --unit Count --value "$DP"
+      aws cloudwatch --region $(params.region) put-metric-data --namespace "$(params.kubernetes-version)" --metric-name "$(params.metric-name)" --dimensions Nodes=$(params.kwok-nodes),RunId=$RID --unit Count --value "$DP"
+      DIMS="Controller=$(params.controller),Tier=$(params.tier),K8sVersion=$(params.kubernetes-version)"
+      aws cloudwatch --region $(params.region) put-metric-data --namespace KCMControllerThroughput --metric-name RSChangesPerSecond --dimensions "$DIMS" --unit Count/Second --value "$RS"
+      aws cloudwatch --region $(params.region) put-metric-data --namespace KCMControllerThroughput --metric-name BusyWorkers --dimensions "$DIMS" --unit Count --value "$BW"
+      cat "$RUN_DIR/verdict.json"
+      exit "$DP"
