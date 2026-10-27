@@ -33,6 +33,9 @@ spec:
   - name: coredns-replicas
     default: "1000"
     description: "CoreDNS replicas to scale to after install"
+  - name: coredns-tolerate-monitoring
+    default: "false"
+    description: "\"true\" adds a monitoring=true:NoSchedule toleration to CoreDNS, for clusters whose only real node is the tainted monitoring node"
   workspaces:
   - name: config
     mountPath: /config/
@@ -136,4 +139,11 @@ spec:
           }
         }
       }' -n kube-system
+      if [ "$(params.coredns-tolerate-monitoring)" = "true" ]; then
+        # Opt-in only: lets CoreDNS run on the tainted monitoring node. Appends to the
+        # existing tolerations (a strategic merge patch would replace the whole list).
+        kubectl patch deployment coredns -n kube-system --type json -p '[{"op": "add", "path": "/spec/template/spec/tolerations/-", "value": {"key": "monitoring", "operator": "Equal", "value": "true", "effect": "NoSchedule"}}]' \
+          || kubectl patch deployment coredns -n kube-system --type json -p '[{"op": "add", "path": "/spec/template/spec/tolerations", "value": [{"key": "monitoring", "operator": "Equal", "value": "true", "effect": "NoSchedule"}]}]' \
+          || { echo "ERROR: could not add the monitoring toleration to CoreDNS"; exit 1; }
+      fi
       kubectl scale --replicas $(params.coredns-replicas) deploy coredns -n kube-system

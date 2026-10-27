@@ -56,8 +56,8 @@ spec:
   - name: busy-ratio
     default: "0.8"
   - name: coredns-replicas
-    default: "0"
-    description: "CoreDNS replicas; 0 because no node here can run CoreDNS and pending pods add controller noise"
+    default: "2"
+    description: "CoreDNS replicas, run on the monitoring node (fluent-bit needs DNS); kept small so few pods add controller noise"
   - name: region
     default: "us-west-2"
     description: "region for the S3 upload and CloudWatch datapoints of generate"
@@ -120,6 +120,9 @@ spec:
       value: "$(params.control-plane-tier)"
     - name: coredns-replicas
       value: "$(params.coredns-replicas)"
+    # The only real node is the tainted monitoring node (KWOK nodes are tainted too).
+    - name: coredns-tolerate-monitoring
+      value: "true"
     runAfter:
     - create-cluster-node-role
     - create-cluster-service-role
