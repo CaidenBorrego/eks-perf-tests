@@ -47,8 +47,14 @@ spec:
       kubectl apply -f ./fluentbit-configmap.yaml
       # Download and patch fluent-bit manifest to include monitoring toleration before applying
       curl -s https://raw.githubusercontent.com/aws-samples/amazon-cloudwatch-container-insights/latest/k8s-deployment-manifest-templates/deployment-mode/daemonset/container-insights-monitoring/fluent-bit/fluent-bit.yaml -o ./fluent-bit.yaml
-      # Inject toleration so daemonset schedules on tainted monitoring nodes from the start
-      sed -i '/tolerations:/a\        - key: "monitoring"\n          operator: "Equal"\n          value: "true"\n          effect: "NoSchedule"' ./fluent-bit.yaml 2>/dev/null || true
+      # Inject toleration so daemonset schedules on tainted monitoring nodes from the start.
+      # The upstream DaemonSet has no tolerations list, so edit the YAML, not the text:
+      # yq appends to the list and creates it when absent.
+      yq -i '(select(.kind == "DaemonSet") | .spec.template.spec.tolerations) += [{"key": "monitoring", "operator": "Equal", "value": "true", "effect": "NoSchedule"}]' ./fluent-bit.yaml
+      if ! yq -e 'select(.kind == "DaemonSet") | .spec.template.spec.tolerations[] | select(.key == "monitoring")' ./fluent-bit.yaml >/dev/null; then
+        echo "ERROR: could not add the monitoring toleration to the fluent-bit DaemonSet"
+        exit 1
+      fi
       # Reduce CPU request from upstream 500m to 100m (fluent-bit is lightweight, avoids scheduling failures at 5k scale when coredns autoscaler packs c5.large nodes)
       sed -i 's/cpu: 500m/cpu: 100m/' ./fluent-bit.yaml 2>/dev/null || true
       kubectl apply -f ./fluent-bit.yaml
