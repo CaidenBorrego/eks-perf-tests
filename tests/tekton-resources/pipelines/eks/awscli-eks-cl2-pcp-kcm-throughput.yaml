@@ -57,7 +57,7 @@ spec:
     default: "0.8"
   - name: coredns-replicas
     default: "2"
-    description: "CoreDNS replicas, run on the monitoring node (fluent-bit needs DNS); kept small so few pods add controller noise"
+    description: "CoreDNS replicas; they run on the monitoring node, the only real node. Kept small so few pods add controller noise"
   - name: region
     default: "us-west-2"
     description: "region for the S3 upload and CloudWatch datapoints of generate"
@@ -179,18 +179,7 @@ spec:
     workspaces:
     - name: config
       workspace: config
-  - name: install-fluentbit-addon
-    params:
-    - name: cluster-name
-      value: $(params.cluster-name)
-    runAfter:
-    - create-mng-monitoring-nodes
-    taskRef:
-      kind: Task
-      name: eks-addon-fluentbit
-    workspaces:
-    - name: config
-      workspace: config
+  # No fluent-bit: no step reads its logs, and the node role cannot write CloudWatch Logs.
   - name: install-kwok
     params:
     - name: assets-url
@@ -207,7 +196,7 @@ spec:
     - name: system-node-selector-value
       value: "monitoring-$(params.cluster-name)-nodes-1"
     runAfter:
-    - install-fluentbit-addon
+    - create-mng-monitoring-nodes
     taskRef:
       kind: Task
       name: kubectl-kwok-install
