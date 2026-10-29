@@ -202,11 +202,12 @@ spec:
       RID="$(params.run-id)"; RID=${RID:-$(context.taskRun.name)}
       echo -n "$(params.results-bucket)" > $(results.s3_result.path)
       aws s3 cp --recursive "$RUN_DIR" "s3://$(params.results-bucket)/" || echo "S3 upload failed" >&2
-      # The 0/1 datapoint feeds the alarm. If it cannot be written, fail the step so the
-      # TaskRun shows what the alarm sees (missing data). The other uploads are best effort.
+      # The 0/1 datapoint on the Nodes dimension feeds the alarm. If it cannot be written,
+      # fail the step so the TaskRun shows what the alarm sees (missing data). The other
+      # uploads (S3, the per-run RunId copy, the trend metrics) are best effort.
       cw_ok=true
       aws cloudwatch --region $(params.region) put-metric-data --namespace "$(params.kubernetes-version)" --metric-name "$(params.metric-name)" --dimensions Nodes=$(params.kwok-nodes) --unit Count --value "$DP" || cw_ok=false
-      aws cloudwatch --region $(params.region) put-metric-data --namespace "$(params.kubernetes-version)" --metric-name "$(params.metric-name)" --dimensions Nodes=$(params.kwok-nodes),RunId=$RID --unit Count --value "$DP" || cw_ok=false
+      aws cloudwatch --region $(params.region) put-metric-data --namespace "$(params.kubernetes-version)" --metric-name "$(params.metric-name)" --dimensions Nodes=$(params.kwok-nodes),RunId=$RID --unit Count --value "$DP" || echo "RunId datapoint upload failed" >&2
       DIMS="Controller=$(params.controller),Tier=$(params.tier),K8sVersion=$(params.kubernetes-version)"
       aws cloudwatch --region $(params.region) put-metric-data --namespace KCMControllerThroughput --metric-name RSChangesPerSecond --dimensions "$DIMS" --unit Count/Second --value "$RS" || echo "RSChangesPerSecond upload failed" >&2
       aws cloudwatch --region $(params.region) put-metric-data --namespace KCMControllerThroughput --metric-name BusyWorkers --dimensions "$DIMS" --unit Count --value "$BW" || echo "BusyWorkers upload failed" >&2

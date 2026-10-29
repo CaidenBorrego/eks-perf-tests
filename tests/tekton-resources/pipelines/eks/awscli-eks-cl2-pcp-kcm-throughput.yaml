@@ -10,8 +10,9 @@ spec:
     with one tainted monitoring node and KWOK fake nodes (no worker MNG), runs a CL2
     closed-loop wave load for one controller, grades it, uploads results to S3, emits
     CloudWatch datapoints, tears the cluster down and sends a slack notification.
-    A 4XL run takes about 55 min (about 25 min of it is the load), so set the
-    PipelineRun timeout well above Tekton's 1 h default.
+    A 4XL run took about 53 min in testing (generate about 25 min, teardown about
+    12 min), so set the PipelineRun timeout well above Tekton's 1 h default (the test
+    runs used 9h, since teardown may retry up to 10 times).
   params:
   - name: cluster-name
   - name: endpoint

@@ -37,17 +37,22 @@ and update this table.
 | `throughput` | median ReplicaSet changes/s per half-wave (junit) >= `min-rs-per-s` |
 | `busy_workers` | delta `workqueue_work_duration_seconds_sum` / delta t on the KCM leader >= `busy-ratio` x `expected-workers` |
 | `cl2_exit_0`, `reconcile_all_waves`, `all_waves_ran` | CL2 finished and every half-wave reconciled |
-| `leader_found`, `single_leader`, `no_counter_reset`, `queue_fed` | one KCM (the leader) runs the queue in the load window, without a counter reset; queue depth > 0 |
+| `leader_found`, `single_leader`, `no_counter_reset`, `queue_fed` | the KCM leader's queue is seen on one API server IP (any other IP has under 5% of its syncs), without a counter reset; queue depth > 0 |
 | `overrides_parsed`, `expected_workers_set` | tier sizes read from the overrides file; `expected-workers` > 0 |
 | `no_leader_change`, `apiservers_unchanged` | KCM lease and API server IPs identical before/after |
 | `cleanup` | 0 test pods left |
+| `evaluate_ran` | false; only in the fallback verdict the Task writes when evaluate.py crashes |
 
-Any failed check gives datapoint 1 (CloudWatch) and a failed TaskRun, after the
-results are uploaded.
+Any failed check gives datapoint 1 and a failed TaskRun, after the results upload
+is attempted. The 0/1 datapoint goes to CloudWatch namespace `<kubernetes-version>`,
+metric `<metric-name>`, dimension `Nodes=<kwok-nodes>` (plus a per-run copy with
+`RunId`). A preflight failure, or a 0/1 datapoint that CloudWatch rejects, fails the
+TaskRun without a datapoint, so an alarm on this series should treat missing data
+as breaching.
 
-Resolution: CL2 checks every 5 s whether a half-wave has reconciled, so half-wave
-times come in 5 s steps (about 13% of a half-wave at 4XL). If `min-rs-per-s` is
-0.85 x a baseline median, a median one step slower still passes and two steps
-slower fails, so the gate catches throughput drops of about 25% and misses
-smaller ones. `busy_workers` has only a lower bound: it catches fewer workers
-than `expected-workers`, not more.
+Resolution: CL2 polls reconcile state every 5 s, so reconcile times mostly fall on
+5 s steps; one step is about 16-18% of a 4XL half-wave. With `min-rs-per-s` at
+0.85 x a baseline median, a two-step slowdown (about 25% lower throughput) fails,
+a one-step slowdown (about 14-16%) sits at the gate and may pass or fail, and
+smaller drops are not visible. `busy_workers` has only a lower bound: it catches
+fewer workers than `expected-workers`, not more.

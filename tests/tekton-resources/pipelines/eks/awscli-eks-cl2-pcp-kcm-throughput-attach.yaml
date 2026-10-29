@@ -8,7 +8,7 @@ spec:
     Test-only: runs the KCM controller throughput test against an existing cluster.
     No create or teardown tasks. Bind the config workspace to a Secret holding the
     cluster kubeconfig under key "kubeconfig" (read-only is fine; nothing writes it).
-    source can be any volume type, an emptyDir too: each Task clones what it needs.
+    source must be writable (an emptyDir works): each Task clones what it needs.
   params:
   - name: controller
     default: "replicaset"

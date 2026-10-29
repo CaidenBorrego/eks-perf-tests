@@ -100,7 +100,7 @@ class T1Baseline(Base):
     def test_fixture_present(self):
         self.assertTrue(os.path.exists(BASELINE_JUNIT))
 
-    def test_throughput_matches_notes(self):
+    def test_throughput_matches_baseline(self):
         waves, failed = evaluate.waves_from_junit(BASELINE_JUNIT, 0.0)
         self.assertFalse(failed)
         self.assertEqual(len(waves), 40)
@@ -283,13 +283,14 @@ class T3ConfigStepNames(unittest.TestCase):
     def test_wave_re_matches_config_step_names(self):
         with open(os.path.join(ASSETS, "replicaset", "config.yaml")) as f:
             names = re.findall(r"^- name: (.+)$", f.read(), re.M)
-        rendered = [n.replace("{{$i}}", "3").replace("{{$dir}}", "up") for n in names]
-        hits = {n: evaluate.WAVE_RE.search(n) for n in rendered}
-        matched = sorted(n for n, m in hits.items() if m)
-        self.assertEqual(matched, ["Reconcile wave 3 up", "Scale up wave 3"])
-        for n in matched:
-            m = hits[n]
-            self.assertEqual((int(m.group(3) or m.group(4)), m.group(2) or m.group(5)), (3, "up"))
+        for d in ("up", "down"):
+            rendered = [n.replace("{{$i}}", "3").replace("{{$dir}}", d) for n in names]
+            hits = {n: evaluate.WAVE_RE.search(n) for n in rendered}
+            matched = sorted(n for n, m in hits.items() if m)
+            self.assertEqual(matched, [f"Reconcile wave 3 {d}", f"Scale {d} wave 3"])
+            for n in matched:
+                m = hits[n]
+                self.assertEqual((int(m.group(3) or m.group(4)), m.group(2) or m.group(5)), (3, d))
 
 
 if __name__ == "__main__":
