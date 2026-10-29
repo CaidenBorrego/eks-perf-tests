@@ -8,8 +8,7 @@ spec:
     Test-only: runs the KCM controller throughput test against an existing cluster.
     No create or teardown tasks. Bind the config workspace to a Secret holding the
     cluster kubeconfig under key "kubeconfig" (read-only is fine; nothing writes it).
-    Bind source to a PVC when install-kwok is "true", so both TaskRuns can share it
-    (each Task also clones on its own, so an emptyDir works too).
+    source can be any volume type, an emptyDir too: each Task clones what it needs.
   params:
   - name: controller
     default: "replicaset"

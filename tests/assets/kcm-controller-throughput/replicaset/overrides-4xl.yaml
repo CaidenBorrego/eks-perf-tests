@@ -1,6 +1,6 @@
 # Full run: 5,000 ReplicaSets, 1,000 patches/s inside each wave (one wave
 # patches all 5,000 in about 5 s, then waits for reconcile). The wave count
-# comes from run-replicaset.sh --waves (per-run overrides file).
+# comes from the Task's waves param (run-overrides.yaml, written by prepare).
 CL2_NAMESPACES: 50
 CL2_RS_PER_NAMESPACE: 100
 CL2_LOAD_QPS: 1000

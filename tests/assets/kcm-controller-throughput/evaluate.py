@@ -23,7 +23,8 @@ import statistics
 import sys
 import xml.etree.ElementTree as ET
 
-# Same half-wave matcher as the original manual load runner these assets come from.
+# Half-wave step names from config.yaml, e.g. "Scale up wave 3" and "Reconcile wave 3 up";
+# both word orders match.
 WAVE_RE = re.compile(r"(Scale|Reconcile) (?:(up|down) wave (\d+)|wave (\d+) (up|down))")
 SAMPLE_RE = re.compile(r'^(\d+) (\S+) (workqueue_\w+)\{name="[^"]+"\} (\S+)$')
 OVERRIDE_RE = re.compile(r"\s*(CL2_NAMESPACES|CL2_RS_PER_NAMESPACE):\s*(\d+)")
@@ -153,7 +154,7 @@ def evaluate(env):
     def win(ip, metric):
         return [v for v in s.get(ip, {}).get(metric, []) if load_start <= v[0] <= load_end]
 
-    # Leader = the master whose queue did the most syncs in the window. Sum only the
+    # Leader = the API server IP whose KCM queue did the most syncs in the window. Sum only the
     # positive steps so a counter reset (KCM restart) keeps the leader visible and
     # is then reported by no_counter_reset instead of hiding as "no leader".
     work = {}
@@ -164,7 +165,7 @@ def evaluate(env):
     ranked = sorted((w, ip) for ip, w in work.items() if w > 0)
     leader = ranked[-1][1] if ranked else None
     metrics["leader_ip"] = leader
-    # Only the leader runs the queue; a second busy master means the window spans a
+    # Only the leader runs the queue; a second busy IP means the window spans a
     # leader handoff, so the leader's series does not cover the whole load. Not redundant
     # with no_leader_change: it also catches a handoff and hand-back inside the run.
     checks["single_leader"] = len(ranked) <= 1 or ranked[-2][0] < 0.05 * ranked[-1][0]
@@ -190,7 +191,7 @@ def evaluate(env):
     lb, la = read(run, "lease.before"), read(run, "lease.after")
     checks["no_leader_change"] = lb != "" and lb == la
     ib, ia = read(run, "ips.before"), read(run, "ips.after")
-    checks["masters_unchanged"] = ib != "" and ib == ia
+    checks["apiservers_unchanged"] = ib != "" and ib == ia
     checks["cleanup"] = read(run, "leftover.pods", "unknown") == "0"
 
     passed = all(checks.values())

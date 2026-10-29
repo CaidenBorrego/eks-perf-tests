@@ -112,7 +112,7 @@ spec:
       left=$(kubectl get ns --no-headers -o custom-columns=:metadata.name | grep -c '^rs-test' || true)
       [ "$left" -eq 0 ] || { echo "$left rs-test namespaces already exist" >&2; exit 1; }
       IPS=$(kubectl get endpoints kubernetes -n default -o jsonpath='{.subsets[*].addresses[*].ip}')
-      [ -n "$IPS" ] || { echo "no master IPs in Endpoints default/kubernetes" >&2; exit 1; }
+      [ -n "$IPS" ] || { echo "no API server IPs in Endpoints default/kubernetes" >&2; exit 1; }
       echo "$IPS" | tr ' ' '\n' | sort > "$RUN_DIR/ips.before"
       kubectl delete ns kcm-probe --ignore-not-found --wait=true
       sed -e "s|__IPS__|$IPS|" -e "s|__CONTROLLER__|$(params.controller)|" \
@@ -123,7 +123,7 @@ spec:
       sleep 30
       # Read the logs first: "kubectl logs | grep -q" can fail under pipefail (SIGPIPE).
       LOGS=$(kubectl -n kcm-probe logs kcm-sampler)
-      grep -q "name=\"$(params.controller)\"" <<<"$LOGS" || { echo "sampler sees no $(params.controller) queue on any master" >&2; exit 1; }
+      grep -q "name=\"$(params.controller)\"" <<<"$LOGS" || { echo "sampler sees no $(params.controller) queue on any API server IP" >&2; exit 1; }
       kubectl -n kube-system get lease kube-controller-manager -o jsonpath='{.spec.holderIdentity} {.spec.leaseTransitions}' > "$RUN_DIR/lease.before"
       printf 'CL2_WAVES: %s\nCL2_MIX: false\nCL2_WAVE_GAP: "0s"\n' "$(params.waves)" > "$RUN_DIR/run-overrides.yaml"
       cp "$CDIR/$(params.overrides)" "$RUN_DIR/"
@@ -202,10 +202,14 @@ spec:
       RID="$(params.run-id)"; RID=${RID:-$(context.taskRun.name)}
       echo -n "$(params.results-bucket)" > $(results.s3_result.path)
       aws s3 cp --recursive "$RUN_DIR" "s3://$(params.results-bucket)/" || echo "S3 upload failed" >&2
-      aws cloudwatch --region $(params.region) put-metric-data --namespace "$(params.kubernetes-version)" --metric-name "$(params.metric-name)" --dimensions Nodes=$(params.kwok-nodes) --unit Count --value "$DP"
-      aws cloudwatch --region $(params.region) put-metric-data --namespace "$(params.kubernetes-version)" --metric-name "$(params.metric-name)" --dimensions Nodes=$(params.kwok-nodes),RunId=$RID --unit Count --value "$DP"
+      # The 0/1 datapoint feeds the alarm. If it cannot be written, fail the step so the
+      # TaskRun shows what the alarm sees (missing data). The other uploads are best effort.
+      cw_ok=true
+      aws cloudwatch --region $(params.region) put-metric-data --namespace "$(params.kubernetes-version)" --metric-name "$(params.metric-name)" --dimensions Nodes=$(params.kwok-nodes) --unit Count --value "$DP" || cw_ok=false
+      aws cloudwatch --region $(params.region) put-metric-data --namespace "$(params.kubernetes-version)" --metric-name "$(params.metric-name)" --dimensions Nodes=$(params.kwok-nodes),RunId=$RID --unit Count --value "$DP" || cw_ok=false
       DIMS="Controller=$(params.controller),Tier=$(params.tier),K8sVersion=$(params.kubernetes-version)"
-      aws cloudwatch --region $(params.region) put-metric-data --namespace KCMControllerThroughput --metric-name RSChangesPerSecond --dimensions "$DIMS" --unit Count/Second --value "$RS"
-      aws cloudwatch --region $(params.region) put-metric-data --namespace KCMControllerThroughput --metric-name BusyWorkers --dimensions "$DIMS" --unit Count --value "$BW"
+      aws cloudwatch --region $(params.region) put-metric-data --namespace KCMControllerThroughput --metric-name RSChangesPerSecond --dimensions "$DIMS" --unit Count/Second --value "$RS" || echo "RSChangesPerSecond upload failed" >&2
+      aws cloudwatch --region $(params.region) put-metric-data --namespace KCMControllerThroughput --metric-name BusyWorkers --dimensions "$DIMS" --unit Count --value "$BW" || echo "BusyWorkers upload failed" >&2
       cat "$RUN_DIR/verdict.json"
+      [ "$cw_ok" = true ] || { echo "CloudWatch upload of the 0/1 datapoint failed" >&2; exit 1; }
       exit "$DP"

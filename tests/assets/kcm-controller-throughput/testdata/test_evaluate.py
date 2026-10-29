@@ -1,6 +1,7 @@
-"""Unit tests for evaluate.py. Run from this directory: python3 -m unittest -v"""
+"""Unit tests for evaluate.py. Run from this directory: python3 -B -m unittest -v"""
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -93,7 +94,7 @@ class Base(unittest.TestCase):
 
 
 class T1Baseline(Base):
-    """Baseline 4XL run (5 workers, 20 waves); its run notes report 161 RS changes/s."""
+    """Baseline 4XL run (5 workers, 20 waves), about 161 RS changes/s by junit."""
     overrides = OVERRIDES_4XL
 
     def test_fixture_present(self):
@@ -195,15 +196,15 @@ class T2Synthetic(Base):
     def test_missing_files_fail_closed(self):
         v = evaluate.evaluate(self.env())
         self.assertFalse(v["passed"])
-        for k in ("cl2_exit_0", "reconcile_all_waves", "no_leader_change", "masters_unchanged", "cleanup"):
+        for k in ("cl2_exit_0", "reconcile_all_waves", "no_leader_change", "apiservers_unchanged", "cleanup"):
             self.assertFalse(v["checks"][k], k)
 
-    def test_masters_changed_and_leftovers(self):
+    def test_apiservers_changed_and_leftovers(self):
         self.valid_run(synthetic_junit(waves=5))
         self.write("ips.after", LEADER)
         self.write("leftover.pods", "3")
         v = evaluate.evaluate(self.env())
-        self.assertFalse(v["checks"]["masters_unchanged"])
+        self.assertFalse(v["checks"]["apiservers_unchanged"])
         self.assertFalse(v["checks"]["cleanup"])
 
     def test_cl2_nonzero(self):
@@ -236,7 +237,7 @@ class T2Synthetic(Base):
         self.assertFalse(v["checks"]["all_waves_ran"])
         self.assertFalse(v["passed"])
 
-    def test_two_busy_masters_fail(self):
+    def test_two_busy_apiservers_fail(self):
         waves = self.valid_run(synthetic_junit(waves=5))
         t0 = min(w["start"] for w in waves.values()) - 30
         t1 = max(w["end"] for w in waves.values()) + 30
@@ -274,6 +275,21 @@ class T2Synthetic(Base):
         with open(os.path.join(self.run, "verdict.json")) as f:
             v = json.load(f)
         self.assertEqual(v["datapoint"], 0)
+
+
+class T3ConfigStepNames(unittest.TestCase):
+    """WAVE_RE must match the half-wave step names config.yaml gives CL2 (junit test names)."""
+
+    def test_wave_re_matches_config_step_names(self):
+        with open(os.path.join(ASSETS, "replicaset", "config.yaml")) as f:
+            names = re.findall(r"^- name: (.+)$", f.read(), re.M)
+        rendered = [n.replace("{{$i}}", "3").replace("{{$dir}}", "up") for n in names]
+        hits = {n: evaluate.WAVE_RE.search(n) for n in rendered}
+        matched = sorted(n for n, m in hits.items() if m)
+        self.assertEqual(matched, ["Reconcile wave 3 up", "Scale up wave 3"])
+        for n in matched:
+            m = hits[n]
+            self.assertEqual((int(m.group(3) or m.group(4)), m.group(2) or m.group(5)), (3, "up"))
 
 
 if __name__ == "__main__":
