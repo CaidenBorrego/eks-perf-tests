@@ -45,14 +45,18 @@ and update this table.
 
 Any failed check gives datapoint 1 and a failed TaskRun, after the results upload
 is attempted. The 0/1 datapoint goes to CloudWatch namespace `<kubernetes-version>`,
-metric `<metric-name>`, dimension `Nodes=<kwok-nodes>` (plus a per-run copy with
-`RunId`). A preflight failure, or a 0/1 datapoint that CloudWatch rejects, fails the
-TaskRun without a datapoint, so an alarm on this series should treat missing data
-as breaching.
+metric `<metric-name>`, dimension `Nodes=<kwok-nodes>`. A per-run copy with `RunId`
+and the trend metrics `RSChangesPerSecond` and `BusyWorkers` (namespace
+`KCMControllerThroughput`, dimensions `Controller`, `Tier`, `K8sVersion`) are best
+effort. A run ends without a `Nodes` datapoint when any step before `publish` fails
+(clone, build, the `prepare` preflight, evaluate), when an earlier pipeline task
+fails, or when CloudWatch rejects the put, so an alarm on this series should treat
+missing data as breaching.
 
 Resolution: CL2 polls reconcile state every 5 s, so reconcile times mostly fall on
-5 s steps; one step is about 16-18% of a 4XL half-wave. With `min-rs-per-s` at
-0.85 x a baseline median, a two-step slowdown (about 25% lower throughput) fails,
-a one-step slowdown (about 14-16%) sits at the gate and may pass or fail, and
-smaller drops are not visible. `busy_workers` has only a lower bound: it catches
-fewer workers than `expected-workers`, not more.
+5 s steps; one step is about 16% of a 4XL half-wave at 5 workers and 18% at 50.
+With `min-rs-per-s` at 0.85 x a baseline median, a two-step slowdown (about 25%
+lower throughput) fails. A one-step slowdown (14-16% lower) lands within about 2%
+of the gate, on either side depending on the baseline, so it is not reliably
+caught. Smaller drops are not visible. `busy_workers` has only a lower bound: it
+catches fewer workers than `expected-workers`, not more.

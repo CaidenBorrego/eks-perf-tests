@@ -94,7 +94,7 @@ class Base(unittest.TestCase):
 
 
 class T1Baseline(Base):
-    """Baseline 4XL run (5 workers, 20 waves), about 161 RS changes/s by junit."""
+    """Baseline 4XL run (5 workers, 20 waves): median 162.7 RS changes/s by junit."""
     overrides = OVERRIDES_4XL
 
     def test_fixture_present(self):
@@ -108,7 +108,7 @@ class T1Baseline(Base):
         with open(BASELINE_JUNIT) as f:
             self.valid_run(f.read())
         v = evaluate.evaluate(self.env(WAVES=20))
-        self.assertAlmostEqual(v["metrics"]["rs_per_s_median"], 161, delta=161 * 0.05)
+        self.assertAlmostEqual(v["metrics"]["rs_per_s_median"], 162.7, places=1)
         self.assertEqual(v["metrics"]["half_waves"], 40)
         self.assertTrue(v["checks"]["reconcile_all_waves"])
         self.assertTrue(v["checks"]["all_waves_ran"])
