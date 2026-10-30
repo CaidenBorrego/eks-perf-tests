@@ -4,7 +4,7 @@
 {{$setupQps := DefaultParam .CL2_SETUP_QPS 100}}
 {{$loadQps := DefaultParam .CL2_LOAD_QPS 1000}}
 {{$waves := DefaultParam .CL2_WAVES 10}}
-{{$settle := DefaultParam .CL2_SETTLE "1m"}}
+{{$settle := DefaultParam .CL2_SETTLE "5m"}}
 {{$setupTimeout := DefaultParam .CL2_SETUP_TIMEOUT "20m"}}
 {{$waveTimeout := DefaultParam .CL2_WAVE_TIMEOUT "5m"}}
 
