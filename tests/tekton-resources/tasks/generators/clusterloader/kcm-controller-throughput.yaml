@@ -2,7 +2,7 @@
 apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
-  name: replicaset-throughput
+  name: kcm-controller-throughput
   namespace: scalability
 spec:
   description: "clusterloader2 task to run various types of cl2 tests on a given cluster."
@@ -13,20 +13,22 @@ spec:
   - name: kiturl
     description: "git url to clone for kit assets"
     default: https://github.com/awslabs/kubernetes-iteration-toolkit
+  - name: controller
+    description: "KCM controller to load: runs tests/assets/kcm-controller-throughput/<controller>/config.yaml; the cl2-* defaults are the replicaset load"
   - name: cl2-namespaces
-    description: "number of namespaces holding the ReplicaSets"
+    description: "number of namespaces holding the test objects"
     default: "50"
-  - name: cl2-rs-per-namespace
-    description: "number of ReplicaSets per namespace"
+  - name: cl2-objects-per-namespace
+    description: "number of test objects (ReplicaSets for replicaset) per namespace"
     default: "100"
   - name: cl2-waves
-    description: "number of waves; each wave scales every ReplicaSet up by one replica and back"
+    description: "number of waves; each wave scales every test object up and back"
     default: "10"
   - name: cl2-load-qps
-    description: "ReplicaSet patches per second inside a wave, at most 1000 with the 20 CL2 clients"
+    description: "test object patches per second inside a wave, at most 1000 with the 20 CL2 clients"
     default: "1000"
   - name: cl2-throughput-threshold
-    description: "ReplicaSet throughput threshold, ReplicaSet changes per second that every half-wave must reach"
+    description: "controller throughput threshold, object changes per second that every half-wave must reach"
     default: "119"
   - name: nodes
     description: "number of dataplane nodes to run the load test against"
@@ -73,15 +75,15 @@ spec:
     image: golang:1.26
     workingDir: $(workspaces.source.path)
     script: |
-      S3_RESULT_PATH=$(params.results-bucket)
+      S3_RESULT_PATH=$(params.results-bucket)/$(params.controller)
       echo $S3_RESULT_PATH > $(results.s3_result.path)
       echo "S3 Path: $S3_RESULT_PATH"
       cat > "$(workspaces.source.path)/overrides.yaml" <<EOL
       CL2_NAMESPACES: $(params.cl2-namespaces)
-      CL2_RS_PER_NAMESPACE: $(params.cl2-rs-per-namespace)
+      CL2_OBJECTS_PER_NAMESPACE: $(params.cl2-objects-per-namespace)
       CL2_WAVES: $(params.cl2-waves)
       CL2_LOAD_QPS: $(params.cl2-load-qps)
-      CL2_REPLICASET_THROUGHPUT_THRESHOLD: $(params.cl2-throughput-threshold)
+      CL2_THROUGHPUT_THRESHOLD: $(params.cl2-throughput-threshold)
       EOL
 
       cat $(workspaces.source.path)/overrides.yaml
@@ -99,7 +101,7 @@ spec:
       TIER=$(params.control-plane-tier)
       ITERATIONS=$(params.iterations)
 
-      cat $(workspaces.source.path)/kubernetes-iteration-toolkit/tests/assets/replicaset-throughput/config.yaml
+      cat $(workspaces.source.path)/kubernetes-iteration-toolkit/tests/assets/kcm-controller-throughput/$(params.controller)/config.yaml
       cd $(workspaces.source.path)/perf-tests/clusterloader2/
 
       FAIL_COUNT=0
@@ -107,7 +109,7 @@ spec:
         echo "--- Starting iteration $i of $ITERATIONS ---"
 
         # 20 clients (100 QPS each): every patch is a GET plus a PATCH, so cl2-load-qps 1000 needs 2000 client QPS.
-        ENABLE_EXEC_SERVICE=false ./clusterloader --kubeconfig=$KUBECONFIG --testconfig=$(workspaces.source.path)/kubernetes-iteration-toolkit/tests/assets/replicaset-throughput/config.yaml --testoverrides=$(workspaces.source.path)/overrides.yaml --nodes=$(params.nodes) --k8s-clients-number=20 --provider=eks --report-dir=$(workspaces.results.path)/${i} --alsologtostderr --v=2
+        ENABLE_EXEC_SERVICE=false ./clusterloader --kubeconfig=$KUBECONFIG --testconfig=$(workspaces.source.path)/kubernetes-iteration-toolkit/tests/assets/kcm-controller-throughput/$(params.controller)/config.yaml --testoverrides=$(workspaces.source.path)/overrides.yaml --nodes=$(params.nodes) --k8s-clients-number=20 --provider=eks --report-dir=$(workspaces.results.path)/${i} --alsologtostderr --v=2
 
         if [ $? -ne 0 ]; then
           echo "Iteration $i failed."

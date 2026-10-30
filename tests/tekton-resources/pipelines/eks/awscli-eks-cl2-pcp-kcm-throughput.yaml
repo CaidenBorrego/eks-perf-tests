@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
-  name: awscli-eks-cl2-pcp-replicaset-throughput
+  name: awscli-eks-cl2-pcp-kcm-throughput
   namespace: scalability
 spec:
   description: |
@@ -11,18 +11,10 @@ spec:
   - name: cluster-name
   - name: endpoint
   - name: desired-nodes
-  - name: metric-name
+  - name: replicaset-metric-name
     default: 'pcp-replicaset-throughput'
-  - name: cl2-namespaces
-    description: "number of namespaces holding the ReplicaSets"
-  - name: cl2-rs-per-namespace
-    description: "number of ReplicaSets per namespace"
-  - name: cl2-waves
-    description: "number of waves; each wave scales every ReplicaSet up by one replica and back"
-  - name: cl2-load-qps
-    description: "ReplicaSet patches per second inside a wave, at most 1000 with the 20 CL2 clients"
-  - name: cl2-throughput-threshold
-    description: "ReplicaSet throughput threshold, ReplicaSet changes per second that every half-wave must reach"
+  - name: replicaset-throughput-threshold
+    description: "ReplicaSet controller throughput threshold, ReplicaSet changes per second that every half-wave must reach"
   - name: results-bucket
   - name: slack-hook
   - name: slack-message
@@ -41,7 +33,7 @@ spec:
     description: "Provisioned control plane tier, default standard"
   - name: iterations
     default: 3
-    description: "number of iterations to run ReplicaSet throughput test for different tiers"
+    description: "number of iterations to run each KCM controller throughput test for different tiers"
   tasks:
   - name: slack-notification
     params:
@@ -183,18 +175,16 @@ spec:
     workspaces:
     - name: config    
       workspace: config
-  - name: generate
+  # One task pair per KCM controller, one controller at a time: <controller>-throughput runs after
+  # the previous controller's task, and <controller>-cw-metrics publishes its datapoint under the
+  # controller's own metric name. A failed CL2 run still lets the next controller run (datapoint 1);
+  # a failed task (an upload error, the 6h step timeout) stops the controllers after it.
+  - name: replicaset-throughput
     params:
-    - name: cl2-namespaces
-      value: $(params.cl2-namespaces)
-    - name: cl2-rs-per-namespace
-      value: $(params.cl2-rs-per-namespace)
-    - name: cl2-waves
-      value: $(params.cl2-waves)
-    - name: cl2-load-qps
-      value: $(params.cl2-load-qps)
+    - name: controller
+      value: replicaset
     - name: cl2-throughput-threshold
-      value: $(params.cl2-throughput-threshold)
+      value: $(params.replicaset-throughput-threshold)
     - name: nodes
       value: $(params.desired-nodes)
     - name: results-bucket
@@ -209,7 +199,7 @@ spec:
     - create-mng-nodes
     taskRef:
       kind: Task
-      name: replicaset-throughput
+      name: kcm-controller-throughput
     workspaces:
     - name: source
       workspace: source
@@ -217,20 +207,20 @@ spec:
       workspace: results
     - name: config    
       workspace: config
-  - name: cw-metrics
+  - name: replicaset-cw-metrics
     params:
     - name: dimensions
       value: $(params.desired-nodes)
     - name: value
-      value: $(tasks.generate.results.datapoint)
+      value: $(tasks.replicaset-throughput.results.datapoint)
     - name: namespace
       value: $(params.kubernetes-version)
     - name: metric-name
-      value: $(params.metric-name)
+      value: $(params.replicaset-metric-name)
     - name: run-id
       value: $(context.pipelineRun.name)
     runAfter:
-      - generate
+      - replicaset-throughput
     taskRef:
       kind: Task
       name: cloudwatch

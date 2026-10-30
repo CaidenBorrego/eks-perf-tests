@@ -1,5 +1,5 @@
 {{$namespaces := DefaultParam .CL2_NAMESPACES 50}}
-{{$rsPerNamespace := DefaultParam .CL2_RS_PER_NAMESPACE 100}}
+{{$rsPerNamespace := DefaultParam .CL2_OBJECTS_PER_NAMESPACE 100}}
 {{$baseReplicas := DefaultParam .CL2_BASE_REPLICAS 2}}
 {{$setupQps := DefaultParam .CL2_SETUP_QPS 100}}
 {{$loadQps := DefaultParam .CL2_LOAD_QPS 1000}}
@@ -8,7 +8,7 @@
 {{$setupTimeout := DefaultParam .CL2_SETUP_TIMEOUT "20m"}}
 {{$waveTimeout := DefaultParam .CL2_WAVE_TIMEOUT "5m"}}
 
-{{$REPLICASET_THROUGHPUT_THRESHOLD := DefaultParam .CL2_REPLICASET_THROUGHPUT_THRESHOLD 119}}
+{{$REPLICASET_THROUGHPUT_THRESHOLD := DefaultParam .CL2_THROUGHPUT_THRESHOLD 119}}
 
 # Each half-wave patches every ReplicaSet once (base -> base+1 replicas, or back) and waits until all pods run.
 # tolerationTimeout gives the pods totalReplicaSets/threshold - totalReplicaSets/loadQps seconds after the Scale
