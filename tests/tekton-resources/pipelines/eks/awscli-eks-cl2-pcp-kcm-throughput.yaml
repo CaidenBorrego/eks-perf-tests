@@ -157,21 +157,35 @@ spec:
     workspaces:
     - name: config    
       workspace: config
-  - name: create-mng-nodes
+  - name: scale-down-addons
     params:
     - name: cluster-name
       value: $(params.cluster-name)
-    - name: desired-nodes
-      value: $(params.desired-nodes)
-    - name: host-cluster-node-role-name
-      value: "$(params.cluster-name)-node-role"
+    - name: coredns-replicas
+      value: "0"
+    - name: ebs-csi-replicas
+      value: "0"
     - name: endpoint
       value: $(params.endpoint)
     runAfter:
     - install-fluentbit-addon
     taskRef:
       kind: Task
-      name:  awscli-eks-nodegroup-create
+      name: scale-addons
+    workspaces:
+    - name: config
+      workspace: config
+  - name: install-kwok-addon
+    params:
+    - name: cluster-name
+      value: $(params.cluster-name)
+    - name: desired-nodes
+      value: $(params.desired-nodes)
+    runAfter:
+    - scale-down-addons
+    taskRef:
+      kind: Task
+      name: eks-addon-kwok
     workspaces:
     - name: config    
       workspace: config
@@ -196,7 +210,7 @@ spec:
     - name: iterations
       value: $(params.iterations)
     runAfter:
-    - create-mng-nodes
+    - install-kwok-addon
     taskRef:
       kind: Task
       name: kcm-controller-throughput
